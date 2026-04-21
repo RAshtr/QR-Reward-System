@@ -41,3 +41,9 @@ class AdminAnalytics(BaseModel):
     total_payout_distributed: float
     total_payout_redeemed: float
     remaining_liability: float
+class OTPSend(BaseModel):
+    mobile: str
+
+class OTPVerify(BaseModel):
+    mobile: str
+    otp_code: str

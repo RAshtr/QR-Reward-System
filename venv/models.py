@@ -1,7 +1,8 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
-from datetime import datetime
+from datetime import datetime,timedelta
+
 
 class Campaign(Base):
     __tablename__ = "campaigns"
@@ -32,3 +33,15 @@ class QRCode(Base):
     redeemed_at = Column(DateTime, nullable=True)    # Kab claim kiya
     
     campaign = relationship("Campaign", back_populates="qr_codes")
+
+
+class OTPVerification(Base):
+    __tablename__ = "otp_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mobile = Column(String, index=True)
+    otp_code = Column(String)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    # OTP 5 minute mein expire ho jayega
+    expires_at = Column(DateTime, default=lambda: datetime.utcnow() + timedelta(minutes=5))
