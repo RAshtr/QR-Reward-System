@@ -6,6 +6,7 @@ from datetime import datetime,timedelta
 
 class Campaign(Base):
     __tablename__ = "campaigns"
+    qr_list = relationship("QRCode", back_populates="campaign", lazy="joined")
     id = Column(Integer, primary_key=True, index=True)
     series_name = Column(String)
     description = Column(String, nullable=True)

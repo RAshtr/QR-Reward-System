@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
 
 const ClaimPage = () => {
     const { qr_id } = useParams();
@@ -9,40 +8,69 @@ const ClaimPage = () => {
     const [formData, setFormData] = useState({ mobile: '', upi: '', otp: '' });
     const [otpSent, setOtpSent] = useState(false);
 
-    const API_BASE = "http://localhost:8000";
+    // AXIOS POORI TARAH HATAYA: Automatic smart endpoint selection for cross-device loading
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
     useEffect(() => {
-        const verifyQR = async () => {
-            try {
-                // CORE FIX: ID ko safely strip, trim aur lowercase mein convert karke bhejenge
-                const cleanId = String(qr_id).toLowerCase().trim();
-                
-                const response = await axios.get(`${API_BASE}/claim/${cleanId}`);
-                setQrData(response.data);
-                setStatus(response.data.is_redeemed ? 'redeemed' : 'active');
-            } catch (err) { 
-                console.error("Verification API Error:", err);
-                setStatus('error'); 
+    const verifyQR = async () => {
+        try {
+            const cleanId = String(qr_id).toLowerCase().trim();
+
+            console.log("QR ID:", cleanId);
+
+            const response = await fetch(`${API_BASE}/claim/${cleanId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log("Response Status:", response.status);
+
+            const data = await response.json();
+
+            console.log("Response Data:", data);
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Invalid or Expired Voucher Code");
             }
-        };
-        if (qr_id) verifyQR();
-    }, [qr_id]);
+
+            setQrData(data);
+            setStatus(data.is_redeemed ? 'redeemed' : 'active');
+
+        } catch (err) {
+            console.error("Verification API Error:", err);
+
+            alert("Backend Error: " + err.message);
+
+            setStatus('error');
+        }
+    };
+
+    if (qr_id) {
+        verifyQR();
+    }
+}, [qr_id]);
 
     const handleSendOtp = async () => {
-        if (!formData.mobile || formData.mobile.length < 10) {
-            alert("Please enter a valid mobile number");
+        if (!formData.mobile || formData.mobile.length !== 10) {
+            alert("Please enter a valid 10-digit mobile number");
             return;
         }
         try {
-            const response = await axios.post(`${API_BASE}/send-otp`, {
-                mobile: formData.mobile
+            const response = await fetch(`${API_BASE}/send-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mobile: formData.mobile })
             });
 
-            if (response.data.status === "Success") {
+            const data = await response.json();
+            if (response.ok) {
                 setOtpSent(true);
-                alert("OTP sent! Check your terminal or mobile.");
+                alert("OTP sent successfully!");
             } else {
-                alert(response.data.message);
+                alert(data.message || "Failed to send OTP");
             }
         } catch (error) {
             console.error("Error sending OTP", error);
@@ -57,39 +85,40 @@ const ClaimPage = () => {
         }
 
         try {
-            // 1. Verify OTP
-            const verifyRes = await axios.post(`${API_BASE}/verify-otp`, {
-                mobile: formData.mobile,
-                otp_code: formData.otp
+            const verifyRes = await fetch(`${API_BASE}/verify-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mobile: formData.mobile, otp_code: formData.otp })
             });
 
-            if (verifyRes.data.status === "Success") {
-                // 2. Redeem Call (Ensuring sanitation on active endpoint mapping)
+            if (verifyRes.ok) {
                 const cleanId = String(qr_id).toLowerCase().trim();
-                const redeemRes = await axios.post(`${API_BASE}/redeem/${cleanId}`, null, {
-                    params: {
-                        mobile: formData.mobile,
-                        upi: formData.upi
-                    }
+                const redeemRes = await fetch(`${API_BASE}/redeem/${cleanId}?mobile=${formData.mobile}&upi=${formData.upi}`, {
+                    method: 'POST'
                 });
 
-                if (redeemRes.data.status === "Success") {
+                if (redeemRes.ok) {
                     setStatus('redeemed');
                 } else {
-                    alert(redeemRes.data.message || "Redemption failed");
+                    alert("Redemption failed from server node");
                 }
+            } else {
+                alert("Invalid OTP code");
             }
         } catch (error) {
             console.error("Verification Error:", error);
-            const errorMsg = error.response?.data?.detail || "Invalid or Expired OTP. Please try again.";
-            alert(errorMsg);
+            alert("Connection error during transfer");
         }
     };
 
     if (status === 'loading') return <div style={loaderStyle}>⚡ Verifying Secure Voucher Node...</div>;
-    if (status === 'error') return <div style={errorContainerStyle}>❌ Invalid or Expired Voucher Code</div>;
+    if (status === 'error')
+    return (
+        <div style={errorContainerStyle}>
+            ❌ Backend Connection Failed
+        </div>
+    );
 
-    // Fallback variable mapping protection
     const displayAmount = qrData?.amount || qrData?.assigned_amount || 0;
 
     return (
@@ -164,7 +193,6 @@ const ClaimPage = () => {
     );
 };
 
-// --- PREMIUM DARK TECH STYLING ---
 const containerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#020617', padding: '20px', fontFamily: '"Segoe UI", Roboto, sans-serif' };
 const cardStyle = { backgroundColor: '#0f172a', padding: '30px', borderRadius: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', width: '100%', maxWidth: '380px', textAlign: 'center', border: '1px solid #1e293b' };
 const badgeStyle = { backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', display: 'inline-block', letterSpacing: '0.5px', marginBottom: '15px' };
