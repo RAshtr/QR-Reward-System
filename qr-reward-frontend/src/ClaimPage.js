@@ -8,50 +8,48 @@ const ClaimPage = () => {
     const [formData, setFormData] = useState({ mobile: '', upi: '', otp: '' });
     const [otpSent, setOtpSent] = useState(false);
 
-    // AXIOS POORI TARAH HATAYA: Automatic smart endpoint selection for cross-device loading
+    // Automatic smart endpoint selection for cross-device loading
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
     useEffect(() => {
-    const verifyQR = async () => {
-        try {
-            const cleanId = String(qr_id).toLowerCase().trim();
+        const verifyQR = async () => {
+            try {
+                const cleanId = String(qr_id).toLowerCase().trim();
 
-            console.log("QR ID:", cleanId);
+                console.log("QR ID:", cleanId);
 
-            const response = await fetch(`${API_BASE}/claim/${cleanId}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
+                const response = await fetch(`${API_BASE}/claim/${cleanId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log("Response Status:", response.status);
+
+                const data = await response.json();
+
+                console.log("Response Data:", data);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Invalid or Expired Voucher Code");
                 }
-            });
 
-            console.log("Response Status:", response.status);
+                setQrData(data);
+                setStatus(data.is_redeemed ? 'redeemed' : 'active');
 
-            const data = await response.json();
-
-            console.log("Response Data:", data);
-
-            if (!response.ok) {
-                throw new Error(data.detail || "Invalid or Expired Voucher Code");
+            } catch (err) {
+                console.error("Verification API Error:", err);
+                alert("Backend Error: " + err.message);
+                setStatus('error');
             }
+        };
 
-            setQrData(data);
-            setStatus(data.is_redeemed ? 'redeemed' : 'active');
-
-        } catch (err) {
-            console.error("Verification API Error:", err);
-
-            alert("Backend Error: " + err.message);
-
-            setStatus('error');
+        if (qr_id) {
+            verifyQR();
         }
-    };
-
-    if (qr_id) {
-        verifyQR();
-    }
-}, [qr_id]);
+    }, [qr_id, API_BASE]);
 
     const handleSendOtp = async () => {
         if (!formData.mobile || formData.mobile.length !== 10) {
@@ -83,8 +81,13 @@ const ClaimPage = () => {
             alert("Please enter a valid 4-digit OTP");
             return;
         }
+        if (!formData.upi || !formData.upi.includes('@')) {
+            alert("Please enter a valid UPI Destination Address");
+            return;
+        }
 
         try {
+            // 1. First Verify OTP code
             const verifyRes = await fetch(`${API_BASE}/verify-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -93,31 +96,36 @@ const ClaimPage = () => {
 
             if (verifyRes.ok) {
                 const cleanId = String(qr_id).toLowerCase().trim();
+                
+                // 2. Fire RazorpayX Real-time Payout routing via Backend Endpoint
                 const redeemRes = await fetch(`${API_BASE}/redeem/${cleanId}?mobile=${formData.mobile}&upi=${formData.upi}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
                 });
 
-                if (redeemRes.ok) {
+                const redeemData = await redeemRes.json();
+
+                if (redeemRes.ok && redeemData.status === "Success") {
                     setStatus('redeemed');
                 } else {
-                    alert("Redemption failed from server node");
+                    alert(`Redemption Failed: ${redeemData.detail || "Transaction declined from server node"}`);
                 }
             } else {
-                alert("Invalid OTP code");
+                alert("Invalid OTP verification code");
             }
         } catch (error) {
             console.error("Verification Error:", error);
-            alert("Connection error during transfer");
+            alert("Connection error during transfer operation");
         }
     };
 
     if (status === 'loading') return <div style={loaderStyle}>⚡ Verifying Secure Voucher Node...</div>;
     if (status === 'error')
-    return (
-        <div style={errorContainerStyle}>
-            ❌ Backend Connection Failed
-        </div>
-    );
+        return (
+            <div style={errorContainerStyle}>
+                ❌ Backend Connection Failed
+            </div>
+        );
 
     const displayAmount = qrData?.amount || qrData?.assigned_amount || 0;
 
