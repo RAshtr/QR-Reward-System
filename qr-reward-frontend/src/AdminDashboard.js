@@ -102,7 +102,7 @@ const AdminDashboard = ({ onLogout }) => {
     }
 
     // FIXED MOBILE SCANNING COLLAPSE: Routing direct onto explicit LAN React standard IP endpoint instead of localhost
-    const baseLiveUrl = process.env.REACT_APP_BASE_LIVE_URL || "http://localhost:3000";
+    const baseLiveUrl = "https://qr-reward-system-gilt.vercel.app";
     const doc = new jsPDF('p', 'mm', 'a4');
     
     const cardWidth = 182;
