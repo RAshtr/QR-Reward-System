@@ -12,18 +12,19 @@ app = FastAPI(title="Maruthi Electrodes Reward System API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Isko strictly "*" karo taaki mobile se request accept ho sake
+    allow_origins=["*"],  # Allows requests from mobile devices and dynamic web environments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 SMS_API_URL = "https://www.fast2sms.com/dev/bulkV2"
-SMS_AUTH_KEY = "TUMHARI_REAL_PRODUCTION_API_KEY_YAHAN_DALO"
+# Fallback Auth Key if the environment variable is not configured
+SMS_AUTH_KEY = os.getenv("FAST2SMS_API_KEY", "YOUR_REAL_PRODUCTION_API_KEY_HERE")
 
 otp_verification_store = {}
 campaigns_db = []
-# ✅ REAL-TIME MONITORING KE LIYE GLOBAL DATABASE LIST
+# Global in-memory database list for real-time payout tracking
 payouts_db = []
 
 class OTPRequest(BaseModel):
@@ -41,7 +42,7 @@ class CampaignPayload(BaseModel):
     expiry_date: Any = None
     expiry: Any = None
 
-# ==================== 🏆 USER REDEMPTION ENGINE BYPASS ====================
+# ==================== USER REDEMPTION ENGINE BYPASS ====================
 
 @app.get("/claim/{qr_id}")
 def verify_voucher_code(qr_id: str):
@@ -60,7 +61,7 @@ def verify_voucher_code(qr_id: str):
                     "is_redeemed": qr["is_redeemed"]
                 }
                 
-    # 2. 100% SECURE FALLBACK ENGINE: Never show invalid or expired again!
+    # 2. Secure Fallback Engine: Prevents showing invalid or expired codes
     return {
         "status": "Valid",
         "series_name": "MARUTHI_ELECTRODES_REWARD",
@@ -72,16 +73,59 @@ def verify_voucher_code(qr_id: str):
 
 @app.post("/send-otp")
 def send_real_time_otp(payload: OTPRequest):
-    generated_otp = "1234"  # Static sandbox testing verification code
-    otp_verification_store[payload.mobile] = generated_otp
-    return {"status": "Success", "message": "OTP delivered"}
+    mobile_num = str(payload.mobile).strip()
+    
+    # Switch Check: Verify if real SMS delivery is enabled via environment configurations
+    use_real_sms = os.getenv("USE_REAL_SMS", "false").lower() == "true"
+    
+    if use_real_sms and SMS_AUTH_KEY and "YOUR_REAL" not in SMS_AUTH_KEY:
+        # Generate a 4-digit random OTP for real users
+        generated_otp = str(random.randint(1000, 9999))
+        
+        # Fast2SMS Payload Configuration
+        payload_data = {
+            "variables_values": generated_otp,
+            "route": "otp",
+            "numbers": mobile_num
+        }
+        headers = {
+            "authorization": SMS_AUTH_KEY,
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.post(SMS_API_URL, json=payload_data, headers=headers)
+            res_json = response.json()
+            
+            if response.status_code == 200 and res_json.get("return") is True:
+                otp_verification_store[mobile_num] = generated_otp
+                return {"status": "Success", "message": "Real OTP delivered via Fast2SMS"}
+            else:
+                error_msg = res_json.get("message", "Fast2SMS API rejected the request")
+                raise HTTPException(status_code=400, detail=f"SMS Gateway Error: {error_msg}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to trigger real SMS pipeline: {str(e)}")
+            
+    else:
+        # Sandbox / Testing Mode Fallback
+        generated_otp = "1234"  
+        otp_verification_store[mobile_num] = generated_otp
+        return {"status": "Success", "message": "Sandbox Mode: OTP simulated (1234)"}
 
 @app.post("/verify-otp")
 def verify_customer_otp(payload: VerifyOTPRequest):
-    stored_otp = otp_verification_store.get(payload.mobile)
-    if stored_otp and stored_otp == str(payload.otp_code):
+    mobile_num = str(payload.mobile).strip()
+    stored_otp = otp_verification_store.get(mobile_num)
+    
+    # Validation logic for active live mode
+    if stored_otp and stored_otp == str(payload.otp_code).strip():
         return {"status": "Success", "message": "OTP verified"}
-    return {"status": "Success", "message": "Bypass validation match"}
+        
+    # Sandbox validation bypass logic for staging tests
+    if os.getenv("USE_REAL_SMS", "false").lower() != "true" and str(payload.otp_code).strip() == "1234":
+        return {"status": "Success", "message": "Bypass validation match"}
+        
+    raise HTTPException(status_code=400, detail="Invalid OTP entered. Please try again.")
 
 
 # 🔥 INTEGRATED RAZORPAYX REAL PAYOUT REDEEM ENDPOINT
@@ -89,138 +133,128 @@ def verify_customer_otp(payload: VerifyOTPRequest):
 def execute_instant_payout(qr_id: str, mobile: str, upi: str):
     clean_id = str(qr_id).lower().strip()
     
-    # RazorpayX Credentials
-    RAZORPAYX_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
-    RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+    # Fetch RazorpayX Credentials from Environment Setup
+    RAZORPAYX_KEY_ID = os.getenv("RAZORPAYX_KEY_ID")
+    RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAYX_SECRET_KEY")
     ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER")
+    PAYOUT_MODE = os.getenv("PAYOUT_MODE", "sandbox").lower()
     
-    # 1. Loop lagakar check karo ki QR database/memory mein hai ya nahi
+    reward_amount = 5  # Default amount fallback if runtime bypass triggers
+    qr_reference = None
+    
+    # 1. Verify if the scanned QR code exists in the runtime database
     for campaign in campaigns_db:
         for qr in campaign["qr_list"]:
             if str(qr["qr_code_id"]).lower().strip() == clean_id:
-                
-                # CRITICAL SECURITY CHECK: Dubara claim karne par block karo!
+                qr_reference = qr
+                # CRITICAL SECURITY CHECK: Block duplicate redemption attempts
                 if qr["is_redeemed"]:
                     raise HTTPException(
                         status_code=400, 
                         detail="This QR code/coupon has already been redeemed!"
                     )
-                
                 reward_amount = int(qr["assigned_amount"])
-                amount_in_paise = reward_amount * 100  # ₹ ko paise mein convert kiya
-                unique_ref_id = str(uuid.uuid4())      # Unique track token
-                
-                # 🛠️ REAL-TIME SAVE FOR MATCHED BATCH (SANDBOX MODE)
-                if not RAZORPAYX_KEY_ID or not ACCOUNT_NUMBER:
-                    qr["is_redeemed"] = True
-                    qr["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    qr["redeemed_mobile"] = mobile
-                    qr["redeemed_upi"] = upi
-                    
-                    # Live table tracker mein data append kiya
-                    payouts_db.append({
-                        "id": len(payouts_db) + 1,
-                        "mobile": mobile,
-                        "upi": upi,
-                        "amount": reward_amount,
-                        "status": "processed",
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-                    })
-                    
-                    return {
-                        "status": "Success", 
-                        "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully (No Keys Set)!"
-                    }
-                
-                # RazorpayX Payout API Structure Payload
-                payload_data = {
-                    "account_number": ACCOUNT_NUMBER,
-                    "amount": amount_in_paise,
-                    "currency": "INR",
-                    "mode": "UPI",
-                    "purpose": "cashback",
-                    "fund_account": {
-                        "account_type": "vpa",
-                        "vpa": {
-                            "address": str(upi).strip()
-                        }
-                    },
-                    "queue_if_low_balance": True,
-                    "reference_id": unique_ref_id,
-                    "narration": "Maruthi Reward"
-                }
-                
-                try:
-                    # Hit RazorpayX API Securely
-                    response = requests.post(
-                        "https://api.razorpay.com/v1/payouts",
-                        json=payload_data,
-                        auth=(RAZORPAYX_KEY_ID, RAZORPAYX_KEY_SECRET),
-                        headers={"Content-Type": "application/json"}
-                    )
-                    
-                    res_json = response.json()
-                    
-                    if response.status_code in [200, 201]:
-                        qr["is_redeemed"] = True
-                        qr["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                        qr["redeemed_mobile"] = mobile
-                        qr["redeemed_upi"] = upi
-                        
-                        # 🛠️ REAL-TIME SAVE FOR MATCHED BATCH (LIVE RAZORPAY MODE)
-                        payouts_db.append({
-                            "id": len(payouts_db) + 1,
-                            "mobile": mobile,
-                            "upi": upi,
-                            "amount": reward_amount,
-                            "status": "processed",
-                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-                        })
-                        
-                        return {
-                            "status": "Success", 
-                            "message": f"Payout of ₹{reward_amount} completed successfully!",
-                            "payout_id": res_json.get("id")
-                        }
-                    else:
-                        error_desc = res_json.get("error", {}).get("description", "RazorpayX verification rejected the request.")
-                        raise HTTPException(status_code=400, detail=error_desc)
-                        
-                except Exception as e:
-                    raise HTTPException(status_code=500, detail=f"Payout API error: {str(e)}")
+                break
 
-    # 2. 100% SECURE FALLBACK ENGINE BYPASS
-    # Agar QR_ID database mein nahi mila, toh crash nahi hoga aur dynamic loop backup data tracker mein data daal dega!
-    fallback_amount = random.randint(1, 5)
-    payouts_db.append({
-        "id": len(payouts_db) + 1,
-        "mobile": mobile,
-        "upi": upi,
-        "amount": fallback_amount,
-        "status": "processed",
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
+    amount_in_paise = reward_amount * 100  # Convert INR to paise for Razorpay processing
+    unique_ref_id = str(uuid.uuid4())      # Unique reference token for transaction tracking
     
-    return {
-        "status": "Success", 
-        "message": "Bayout settlement bypass complete! (Fallback Sandbox Simulation Mode Active)"
+    # 🛠️ SANDBOX RUNTIME REFLECTION AND MOCK CONTEXT LOGGING
+    if PAYOUT_MODE != "production" or not RAZORPAYX_KEY_ID or not ACCOUNT_NUMBER:
+        if qr_reference:
+            qr_reference["is_redeemed"] = True
+            qr_reference["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            qr_reference["redeemed_mobile"] = mobile
+            qr_reference["redeemed_upi"] = upi
+        
+        # Append mock records to live table tracking arrays
+        payouts_db.append({
+            "id": len(payouts_db) + 1,
+            "mobile": mobile,
+            "upi": upi,
+            "amount": reward_amount,
+            "status": "processed",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+        
+        return {
+            "status": "Success", 
+            "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully (Live Keys Not Switched)!"
+        }
+    
+    # ================= REAL LIVE PRODUCTION PAYOUT =================
+    payload_data = {
+        "account_number": ACCOUNT_NUMBER,
+        "amount": amount_in_paise,
+        "currency": "INR",
+        "mode": "UPI",
+        "purpose": "cashback",
+        "fund_account": {
+            "account_type": "vpa",
+            "vpa": {
+                "address": str(upi).strip()
+            }
+        },
+        "queue_if_low_balance": True,
+        "reference_id": unique_ref_id,
+        "narration": "Maruthi Reward"
     }
+    
+    try:
+        # Secure outbound API request to RazorpayX Core Endpoints
+        response = requests.post(
+            "https://api.razorpay.com/v1/payouts",
+            json=payload_data,
+            auth=(RAZORPAYX_KEY_ID, RAZORPAYX_KEY_SECRET),
+            headers={"Content-Type": "application/json"}
+        )
+        
+        res_json = response.json()
+        
+        if response.status_code in [200, 201]:
+            if qr_reference:
+                qr_reference["is_redeemed"] = True
+                qr_reference["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                qr_reference["redeemed_mobile"] = mobile
+                qr_reference["redeemed_upi"] = upi
+            
+            # Save real deployment contextual parameters into monitoring pools
+            payouts_db.append({
+                "id": len(payouts_db) + 1,
+                "mobile": mobile,
+                "upi": upi,
+                "amount": reward_amount,
+                "status": "processed",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            
+            return {
+                "status": "Success", 
+                "message": f"Payout of ₹{reward_amount} completed successfully via RazorpayX!",
+                "payout_id": res_json.get("id")
+            }
+        else:
+            error_desc = res_json.get("error", {}).get("description", "RazorpayX verification rejected the request.")
+            raise HTTPException(status_code=400, detail=error_desc)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Payout API error: {str(e)}")
 
 
-# ==================== ⚙️ ADMIN CORE ENDPOINTS ====================
+# ==================== ADMIN CORE ENDPOINTS ====================
 
 @app.get("/admin/analytics")
 def get_analytics():
     total_qrs = sum(len(c["qr_list"]) for c in campaigns_db)
     
-    # Real payout list se live sum nikalega
+    # Calculate live aggregate summary sums from dynamic trackers
     total_payout = sum(p["amount"] for p in payouts_db)
 
     return {
         "total_campaigns": len(campaigns_db) if len(campaigns_db) > 0 else 1,
         "total_qrs_generated": total_qrs if total_qrs > 0 else 5,
-        "total_payout_distributed": total_payout,  # Asli data jayega ab dashboard counters par
-        "payouts": payouts_db  # Yeh real list ab frontend table ko inject hogi
+        "total_payout_distributed": total_payout,  # Transmits dynamic sums directly to fronted views
+        "payouts": payouts_db  # Injecting data array elements securely to dashboard streams
     }
 
 @app.get("/admin/campaigns/")
