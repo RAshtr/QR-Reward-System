@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# FALLBACK KEY IF ENV FAILED TO LOAD
+# Fallback Auth Key if the environment variable is not configured
 SMS_AUTH_KEY = os.getenv("FAST2SMS_API_KEY", "YOUR_REAL_PRODUCTION_API_KEY_HERE")
 
 otp_verification_store = {}
@@ -101,19 +101,24 @@ def send_real_time_otp(payload: OTPRequest):
             response = requests.get(FAST2SMS_QUICK_OTP_URL, params=query_params, headers=headers)
             res_json = response.json()
             
+            # Print to Render logs for backend inspection
+            print(f"[FAST2SMS RESPONSE LOG] Status Code: {response.status_code}, JSON: {res_json}")
+            
             # Strict verification of true API response wrappers
             if response.status_code == 200 and (res_json.get("return") is True or res_json.get("status_code") == 200 or "success" in str(res_json.get("message", "")).lower()):
                 otp_verification_store[mobile_num] = generated_otp
                 return {"status": "Success", "message": "Real transactional dynamic OTP delivered"}
             else:
-                error_msg = res_json.get("message", "API authentication rejection or gateway restriction")
-                raise HTTPException(status_code=400, detail=f"SMS Gateway Error: {error_msg}")
+                # Direct API Message pass-through to help debug instantly on frontend popup
+                error_msg = res_json.get("message", f"Gateway Error Code: {res_json}")
+                raise HTTPException(status_code=400, detail=f"SMS Gateway Rejection: {error_msg}")
                 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to execute real-time SMS pipeline: {str(e)}")
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=500, detail=f"Pipeline Error: {str(e)}")
             
     else:
-        # STRICT BLOCKED: If real mode is toggled, sandbox fallback is completely disabled to protect transaction security
         raise HTTPException(status_code=400, detail="Security Configuration Block: Production SMS settings are inactive")
 
 @app.post("/verify-otp")
