@@ -73,35 +73,41 @@ def verify_voucher_code(qr_id: str):
 
 @app.post("/send-otp")
 def send_real_time_otp(payload: OTPRequest):
-    mobile_num = str(payload.mobile).strip()
+    # Extract and clean phone string to match standard 10-digit format
+    raw_mobile = str(payload.mobile).strip()
+    mobile_num = raw_mobile[-10:] if len(raw_mobile) > 10 else raw_mobile
     
     # Switch Check: Verify if real SMS delivery is enabled via environment configurations
     use_real_sms = os.getenv("USE_REAL_SMS", "false").lower() == "true"
     
     if use_real_sms and SMS_AUTH_KEY and "YOUR_REAL" not in SMS_AUTH_KEY:
-        # Generate a 4-digit random OTP for real users
+        # Generate a secure 4-digit random OTP token for transactional logs
         generated_otp = str(random.randint(1000, 9999))
         
-        # Fast2SMS Payload Configuration
+        # Standardized payload structure optimized for Quick OTP routes under regulatory parameters
         payload_data = {
             "variables_values": generated_otp,
             "route": "otp",
             "numbers": mobile_num
         }
+        
+        # Enforcing exact case-sensitive authorization tokens and caching parameters
         headers = {
-            "authorization": SMS_AUTH_KEY,
-            "Content-Type": "application/json"
+            "Authorization": SMS_AUTH_KEY.strip(),
+            "Content-Type": "application/json",
+            "cache-control": "no-cache"
         }
         
         try:
             response = requests.post(SMS_API_URL, json=payload_data, headers=headers)
             res_json = response.json()
             
-            if response.status_code == 200 and res_json.get("return") is True:
+            # Checks both HTTP response wrapper status and corporate message success codes
+            if response.status_code == 200 and (res_json.get("return") is True or res_json.get("status_code") == 200):
                 otp_verification_store[mobile_num] = generated_otp
                 return {"status": "Success", "message": "Real OTP delivered via Fast2SMS"}
             else:
-                error_msg = res_json.get("message", "Fast2SMS API rejected the request")
+                error_msg = res_json.get("message", "Fast2SMS API rejected the structural formatting")
                 raise HTTPException(status_code=400, detail=f"SMS Gateway Error: {error_msg}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to trigger real SMS pipeline: {str(e)}")
@@ -114,7 +120,8 @@ def send_real_time_otp(payload: OTPRequest):
 
 @app.post("/verify-otp")
 def verify_customer_otp(payload: VerifyOTPRequest):
-    mobile_num = str(payload.mobile).strip()
+    raw_mobile = str(payload.mobile).strip()
+    mobile_num = raw_mobile[-10:] if len(raw_mobile) > 10 else raw_mobile
     stored_otp = otp_verification_store.get(mobile_num)
     
     # Validation logic for active live mode
