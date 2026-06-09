@@ -18,9 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Standard URL for custom templates configuration
-SMS_API_URL = "https://www.fast2sms.com/dev/bulkV2"
-# Fallback Auth Key if the environment variable is not configured
+# FALLBACK KEY IF ENV FAILED TO LOAD
 SMS_AUTH_KEY = os.getenv("FAST2SMS_API_KEY", "YOUR_REAL_PRODUCTION_API_KEY_HERE")
 
 otp_verification_store = {}
@@ -74,64 +72,49 @@ def verify_voucher_code(qr_id: str):
 
 @app.post("/send-otp")
 def send_real_time_otp(payload: OTPRequest):
-    # Extract and clean phone string to match standard 10-digit format
+    # Strictly clean mobile string to extract pure 10 digits
     raw_mobile = str(payload.mobile).strip()
     mobile_num = raw_mobile[-10:] if len(raw_mobile) > 10 else raw_mobile
     
-    # Switch Check: Verify if real SMS delivery is enabled via environment configurations
     use_real_sms = os.getenv("USE_REAL_SMS", "false").lower() == "true"
     
     if use_real_sms and SMS_AUTH_KEY and "YOUR_REAL" not in SMS_AUTH_KEY:
-        # Generate a secure 4-digit random OTP token for transactional logs
+        # Generates a strictly dynamic 4-digit fresh random OTP every single time
         generated_otp = str(random.randint(1000, 9999))
         
-        # Enforcing explicit proper-case authorization tokens and headers
+        # Fast2SMS Official Direct Wallet Bypass URL for Instant Quick OTP (No DLT Required)
+        FAST2SMS_QUICK_OTP_URL = "https://www.fast2sms.com/dev/v3/wallet/otp"
+        
+        # Core query parameters required explicitly by Fast2SMS wallet engine
+        query_params = {
+            "otp": generated_otp,
+            "number": mobile_num
+        }
+        
         headers = {
             "Authorization": SMS_AUTH_KEY.strip(),
-            "Content-Type": "application/x-www-form-urlencoded",
             "cache-control": "no-cache"
         }
         
-        # Standardized payload structure optimized for Quick OTP routes bypassing content filters
-        payload_data = {
-            "variables_values": generated_otp,
-            "route": "otp",
-            "numbers": mobile_num
-        }
-        
         try:
-            # First Attempt: Try standard Form-Data submission pattern
-            response = requests.post(SMS_API_URL, data=payload_data, headers=headers)
+            # Outbound GET request to official wallet route
+            response = requests.get(FAST2SMS_QUICK_OTP_URL, params=query_params, headers=headers)
             res_json = response.json()
             
-            # If standard route fails or encounters DLT block, execute direct wallet backup pipeline
-            if response.status_code != 200 or res_json.get("return") is not True:
-                # Direct Official Wallet Bypass endpoint that uses Fast2SMS pre-approved default system template
-                fallback_wallet_url = "https://www.fast2sms.com/dev/v3/wallet/otp"
-                fallback_params = {
-                    "otp": generated_otp,
-                    "number": mobile_num
-                }
-                
-                response = requests.get(fallback_wallet_url, params=fallback_params, headers={"Authorization": SMS_AUTH_KEY.strip()})
-                res_json = response.json()
-            
-            # Check final response maps for successful dispatch verification
+            # Strict verification of true API response wrappers
             if response.status_code == 200 and (res_json.get("return") is True or res_json.get("status_code") == 200 or "success" in str(res_json.get("message", "")).lower()):
                 otp_verification_store[mobile_num] = generated_otp
-                return {"status": "Success", "message": "Real OTP delivered via Fast2SMS Gateway"}
+                return {"status": "Success", "message": "Real transactional dynamic OTP delivered"}
             else:
-                error_msg = res_json.get("message", "Fast2SMS network gateway rejected the transmission routing parameters")
+                error_msg = res_json.get("message", "API authentication rejection or gateway restriction")
                 raise HTTPException(status_code=400, detail=f"SMS Gateway Error: {error_msg}")
                 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to trigger real SMS pipeline: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to execute real-time SMS pipeline: {str(e)}")
             
     else:
-        # Sandbox / Testing Mode Fallback
-        generated_otp = "1234"  
-        otp_verification_store[mobile_num] = generated_otp
-        return {"status": "Success", "message": "Sandbox Mode: OTP simulated (1234)"}
+        # STRICT BLOCKED: If real mode is toggled, sandbox fallback is completely disabled to protect transaction security
+        raise HTTPException(status_code=400, detail="Security Configuration Block: Production SMS settings are inactive")
 
 @app.post("/verify-otp")
 def verify_customer_otp(payload: VerifyOTPRequest):
@@ -139,15 +122,13 @@ def verify_customer_otp(payload: VerifyOTPRequest):
     mobile_num = raw_mobile[-10:] if len(raw_mobile) > 10 else raw_mobile
     stored_otp = otp_verification_store.get(mobile_num)
     
-    # Validation logic for active live mode
+    # Strict matching verification against dynamic transient memory layer
     if stored_otp and stored_otp == str(payload.otp_code).strip():
-        return {"status": "Success", "message": "OTP verified"}
+        # Pop token immediately after validation to prevent reuse attacks
+        otp_verification_store.pop(mobile_num, None)
+        return {"status": "Success", "message": "OTP verified successfully"}
         
-    # Sandbox validation bypass logic for staging tests
-    if os.getenv("USE_REAL_SMS", "false").lower() != "true" and str(payload.otp_code).strip() == "1234":
-        return {"status": "Success", "message": "Bypass validation match"}
-        
-    raise HTTPException(status_code=400, detail="Invalid OTP entered. Please try again.")
+    raise HTTPException(status_code=400, detail="Invalid OTP entered. Transaction rejected.")
 
 
 # 🔥 INTEGRATED RAZORPAYX REAL PAYOUT REDEEM ENDPOINT
@@ -268,15 +249,13 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
 @app.get("/admin/analytics")
 def get_analytics():
     total_qrs = sum(len(c["qr_list"]) for c in campaigns_db)
-    
-    # Calculate live aggregate summary sums from dynamic trackers
     total_payout = sum(p["amount"] for p in payouts_db)
 
     return {
         "total_campaigns": len(campaigns_db) if len(campaigns_db) > 0 else 1,
         "total_qrs_generated": total_qrs if total_qrs > 0 else 5,
-        "total_payout_distributed": total_payout,  # Transmits dynamic sums directly to fronted views
-        "payouts": payouts_db  # Injecting data array elements securely to dashboard streams
+        "total_payout_distributed": total_payout,
+        "payouts": payouts_db
     }
 
 @app.get("/admin/campaigns/")
