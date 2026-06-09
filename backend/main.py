@@ -1,6 +1,7 @@
 import os
 import requests
 import uuid
+import random
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,17 +21,13 @@ app.add_middleware(
 )
 
 # Initialize Firebase Admin SDK
-# It will look for GOOGLE_APPLICATION_CREDENTIALS env variable pointing to the service account JSON path,
-# or default to initializing if credentials are provided via environmental structures.
 try:
     if not firebase_admin._apps:
-        # If running locally or with a service account file configured
         cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         if cred_path and os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
         else:
-            # Fallback initialization using default credentials context on host environment
             firebase_admin.initialize_app()
     print("[FIREBASE] Firebase Admin SDK successfully initialized.")
 except Exception as e:
@@ -40,9 +37,17 @@ campaigns_db = []
 # Global in-memory database list for real-time payout tracking
 payouts_db = []
 
+# Legacy Models retained to prevent Frontend compilation or communication crashes
+class OTPRequest(BaseModel):
+    mobile: str
+
+class VerifyOTPRequest(BaseModel):
+    mobile: str
+    otp_code: str
+
 class FirebaseVerifyRequest(BaseModel):
-    id_token: str  # The secure token generated on frontend after successful Firebase Phone Auth verification
-    mobile: str    # User phone number transmitted for cross-validation mappings
+    id_token: str  
+    mobile: str    
 
 class CampaignPayload(BaseModel):
     series_name: Any = None
@@ -76,23 +81,35 @@ def verify_voucher_code(qr_id: str):
         "status": "Valid",
         "series_name": "MARUTHI_ELECTRODES_REWARD",
         "expiry_date": "2026-12-31",
-        "assigned_amount": random.randint(1, 5) if 'random' in globals() else 5,
-        "amount": random.randint(1, 5) if 'random' in globals() else 5,
+        "assigned_amount": random.randint(1, 5),
+        "amount": random.randint(1, 5),
         "is_redeemed": False
     }
+
+# ==================== DUMMY COMPATIBILITY ENDPOINTS FOR FRONTEND ====================
+
+@app.post("/send-otp")
+def send_real_time_otp(payload: OTPRequest):
+    """
+    Temporary bypass mapping route to satisfy old frontend legacy requests 
+    and suppress popup failures during infrastructure transitions.
+    """
+    return {"status": "Success", "message": "Bypass simulated channel active"}
+
+@app.post("/verify-otp")
+def verify_customer_otp(payload: VerifyOTPRequest):
+    """
+    Temporary validation route allowing pass-through without blocking frontend user demo journeys.
+    """
+    return {"status": "Success", "message": "Bypass validation match"}
 
 # ==================== FIREBASE AUTH GATEWAY VALIDATION ====================
 
 @app.post("/verify-firebase-token")
 def verify_firebase_authentication_token(payload: FirebaseVerifyRequest):
-    """
-    Secure gateway endpoint to cryptographically verify Firebase Auth ID Tokens sent from the frontend client application.
-    This eliminates third-party SMS vendor configuration vulnerabilities and enforces multi-factor client verification.
-    """
     token = payload.id_token.strip()
     client_mobile = payload.mobile.strip()
     
-    # Switch Check: Dynamic toggle option for quick system simulation if environment setup is pending
     use_real_sms = os.getenv("USE_REAL_SMS", "false").lower() == "true"
     
     if not use_real_sms:
@@ -100,14 +117,12 @@ def verify_firebase_authentication_token(payload: FirebaseVerifyRequest):
         return {"status": "Success", "message": "Sandbox Firebase authentication validated seamlessly"}
 
     try:
-        # Cryptographically verify the ID token validity and signature with global Firebase authority servers
         decoded_token = auth.verify_id_token(token)
         firebase_uid = decoded_token.get("uid")
         phone_number_verified = decoded_token.get("phone_number")
         
         print(f"[FIREBASE SUCCESS] Token verified successfully. UID: {firebase_uid}, Phone: {phone_number_verified}")
         
-        # Cross-verify that the verified phone matches the requested mobile payload parameters
         cleaned_verified = str(phone_number_verified).replace("+91", "").strip()
         cleaned_client = client_mobile.replace("+91", "").strip()
         
@@ -144,15 +159,13 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
     ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER")
     PAYOUT_MODE = os.getenv("PAYOUT_MODE", "sandbox").lower()
     
-    reward_amount = 5  # Default amount fallback if runtime bypass triggers
+    reward_amount = 5  
     qr_reference = None
     
-    # 1. Verify if the scanned QR code exists in the runtime database
     for campaign in campaigns_db:
         for qr in campaign["qr_list"]:
             if str(qr["qr_code_id"]).lower().strip() == clean_id:
                 qr_reference = qr
-                # CRITICAL SECURITY CHECK: Block duplicate redemption attempts
                 if qr["is_redeemed"]:
                     raise HTTPException(
                         status_code=400, 
@@ -161,10 +174,9 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
                 reward_amount = int(qr["assigned_amount"])
                 break
 
-    amount_in_paise = reward_amount * 100  # Convert INR to paise for Razorpay processing
-    unique_ref_id = str(uuid.uuid4())      # Unique reference token for transaction tracking
+    amount_in_paise = reward_amount * 100  
+    unique_ref_id = str(uuid.uuid4())      
     
-    # 🛠️ SANDBOX RUNTIME REFLECTION AND MOCK CONTEXT LOGGING
     if PAYOUT_MODE != "production" or not RAZORPAYX_KEY_ID or not ACCOUNT_NUMBER:
         if qr_reference:
             qr_reference["is_redeemed"] = True
@@ -172,7 +184,6 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
             qr_reference["redeemed_mobile"] = mobile
             qr_reference["redeemed_upi"] = upi
         
-        # Append mock records to live table tracking arrays
         payouts_db.append({
             "id": len(payouts_db) + 1,
             "mobile": mobile,
@@ -187,7 +198,6 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
             "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully (Live Keys Not Switched)!"
         }
     
-    # ================= REAL LIVE PRODUCTION PAYOUT =================
     payload_data = {
         "account_number": ACCOUNT_NUMBER,
         "amount": amount_in_paise,
@@ -206,7 +216,6 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
     }
     
     try:
-        # Secure outbound API request to RazorpayX Core Endpoints
         response = requests.post(
             "https://api.razorpay.com/v1/payouts",
             json=payload_data,
@@ -223,7 +232,6 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
                 qr_reference["redeemed_mobile"] = mobile
                 qr_reference["redeemed_upi"] = upi
             
-            # Save real deployment contextual parameters into monitoring pools
             payouts_db.append({
                 "id": len(payouts_db) + 1,
                 "mobile": mobile,
@@ -284,7 +292,7 @@ def create_campaign(payload: CampaignPayload):
     
     for idx in range(qty):
         fake_uuid = str(uuid.uuid4())
-        assigned_amt = random.randint(min_val, max_val) if 'random' in globals() else min_val
+        assigned_amt = random.randint(min_val, max_val)
         
         mock_qr_list.append({
             "qr_code_id": str(fake_uuid),
