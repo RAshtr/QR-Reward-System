@@ -21,10 +21,11 @@ app.add_middleware(
 
 # ==================== TWILIO CONFIGURATION ====================
 # Aapke provided dynamic master credentials
-TWONT_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "AC_DUMMY_VARIABLE_PLACEHOLDER")
-TWONT_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "TOKEN_DUMMY_VARIABLE_PLACEHOLDER")
-TWILIO_ACCOUNT_SID = TWONT_ACCOUNT_SID
-TWILIO_AUTH_TOKEN = TWONT_AUTH_TOKEN
+import os
+from twilio.rest import Client
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
