@@ -15,7 +15,7 @@ const AdminDashboard = ({ onLogout }) => {
   const [formData, setFormData] = useState(initialFormState);
 
   // FIXED INTERFACE ZONE - Numeric path lock matching your active network node
-  const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
+  const API_BASE = "https://qr-reward-system.onrender.com"; // Apne sahi Render URL se replace karein
   const THEME_COLOR = "#38bdf8"; 
 
   const fetchData = async (autoSelectId = null) => {

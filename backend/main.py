@@ -254,7 +254,7 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
         raise HTTPException(status_code=500, detail=f"Payout API error: {str(e)}")
 
 
-# ==================== ADMIN CORE ENDPOINTS ====================
+# ==================== ADMIN CORE ENDPOINTS ========================
 
 @app.get("/admin/analytics")
 def get_analytics():
