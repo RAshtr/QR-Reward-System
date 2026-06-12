@@ -3,6 +3,7 @@ name = "maruthi-electrodes-reward-backend"
 version = "0.1.0"
 description = "Backend for QR Reward System"
 authors = ["Ravi Shankar Tripathi"]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
