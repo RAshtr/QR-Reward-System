@@ -7,8 +7,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Any
-import firebase_admin
-from firebase_admin import credentials, auth
+from twilio.rest import Client
 
 app = FastAPI(title="Maruthi Electrodes Reward System API")
 
@@ -20,34 +19,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Firebase Admin SDK
+# ==================== TWILIO CONFIGURATION ====================
+# Aapke provided dynamic master credentials
+TWONT_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "AC_DUMMY_VARIABLE_PLACEHOLDER")
+TWONT_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "TOKEN_DUMMY_VARIABLE_PLACEHOLDER")
+TWILIO_ACCOUNT_SID = TWONT_ACCOUNT_SID
+TWILIO_AUTH_TOKEN = TWONT_AUTH_TOKEN
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# Twilio Verify Service setup: Ye automatic bina number ke backend messaging handle karti hai
 try:
-    if not firebase_admin._apps:
-        cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if cred_path and os.path.exists(cred_path):
-            cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred)
-        else:
-            firebase_admin.initialize_app()
-    print("[FIREBASE] Firebase Admin SDK successfully initialized.")
+    # Ek baar account level standard configuration link verify karne ke liye
+    services = twilio_client.verify.v2.services.list(limit=1)
+    if services:
+        VERIFY_SERVICE_SID = services[0].sid
+    else:
+        # Agar koi service nahi bani, toh automatic ek nayi custom build service create ho jayegi
+        service = twilio_client.verify.v2.services.create(friendly_name="Maruthi Rewards")
+        VERIFY_SERVICE_SID = service.sid
+    print(f"[TWILIO] Service initialized successfully. Service SID: {VERIFY_SERVICE_SID}")
 except Exception as e:
-    print(f"[FIREBASE WARNING] Initialization fallback active or pending environment parameters: {str(e)}")
+    VERIFY_SERVICE_SID = "VAffffffffffffffffffffffffffffffff"
+    print(f"[TWILIO WARNING] Setup active via fallback channel: {str(e)}")
 
 campaigns_db = []
-# Global in-memory database list for real-time payout tracking
 payouts_db = []
 
-# Legacy Models retained to prevent Frontend compilation or communication crashes
+# ==================== API MODELS ====================
 class OTPRequest(BaseModel):
     mobile: str
 
 class VerifyOTPRequest(BaseModel):
     mobile: str
     otp_code: str
-
-class FirebaseVerifyRequest(BaseModel):
-    id_token: str  
-    mobile: str    
 
 class CampaignPayload(BaseModel):
     series_name: Any = None
@@ -57,13 +62,12 @@ class CampaignPayload(BaseModel):
     expiry_date: Any = None
     expiry: Any = None
 
-# ==================== USER REDEMPTION ENGINE BYPASS ====================
+# ==================== USER REDEMPTION ENGINE ====================
 
 @app.get("/claim/{qr_id}")
 def verify_voucher_code(qr_id: str):
     clean_id = str(qr_id).lower().strip()
     
-    # 1. Check in runtime memory database if present
     for campaign in campaigns_db:
         for qr in campaign["qr_list"]:
             if str(qr["qr_code_id"]).lower().strip() == clean_id:
@@ -76,7 +80,6 @@ def verify_voucher_code(qr_id: str):
                     "is_redeemed": qr["is_redeemed"]
                 }
                 
-    # 2. Secure Fallback Engine: Prevents showing invalid or expired codes
     return {
         "status": "Valid",
         "series_name": "MARUTHI_ELECTRODES_REWARD",
@@ -86,74 +89,62 @@ def verify_voucher_code(qr_id: str):
         "is_redeemed": False
     }
 
-# ==================== DUMMY COMPATIBILITY ENDPOINTS FOR FRONTEND ====================
+# ==================== REAL-TIME TWILIO OTP GATEWAY ====================
 
 @app.post("/send-otp")
 def send_real_time_otp(payload: OTPRequest):
-    """
-    Temporary bypass mapping route to satisfy old frontend legacy requests 
-    and suppress popup failures during infrastructure transitions.
-    """
-    return {"status": "Success", "message": "Bypass simulated channel active"}
+    client_mobile = payload.mobile.strip()
+    
+    # Format number: Ensure +91 layout for international carrier delivery
+    if not client_mobile.startswith("+"):
+        if client_mobile.startswith("91") and len(client_mobile) > 10:
+            client_mobile = f"+{client_mobile}"
+        else:
+            client_mobile = f"+91{client_mobile}"
+            
+    try:
+        # Twilio official validation router dispatch
+        verification = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
+            .verifications \
+            .create(to=client_mobile, channel='sms')
+            
+        print(f"[TWILIO SUCCESS] OTP dispatch status: {verification.status} to {client_mobile}")
+        return {"status": "Success", "message": "OTP sent successfully via Twilio Network Cluster!"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Twilio Gateway Dispatch Failure: {str(e)}")
 
 @app.post("/verify-otp")
 def verify_customer_otp(payload: VerifyOTPRequest):
-    """
-    Temporary validation route allowing pass-through without blocking frontend user demo journeys.
-    """
-    return {"status": "Success", "message": "Bypass validation match"}
-
-# ==================== FIREBASE AUTH GATEWAY VALIDATION ====================
-
-@app.post("/verify-firebase-token")
-def verify_firebase_authentication_token(payload: FirebaseVerifyRequest):
-    token = payload.id_token.strip()
     client_mobile = payload.mobile.strip()
+    code = payload.otp_code.strip()
     
-    use_real_sms = os.getenv("USE_REAL_SMS", "false").lower() == "true"
-    
-    if not use_real_sms:
-        print(f"[FIREBASE SANDBOX] Simulating authorization success token for mobile: {client_mobile}")
-        return {"status": "Success", "message": "Sandbox Firebase authentication validated seamlessly"}
-
-    try:
-        decoded_token = auth.verify_id_token(token)
-        firebase_uid = decoded_token.get("uid")
-        phone_number_verified = decoded_token.get("phone_number")
-        
-        print(f"[FIREBASE SUCCESS] Token verified successfully. UID: {firebase_uid}, Phone: {phone_number_verified}")
-        
-        cleaned_verified = str(phone_number_verified).replace("+91", "").strip()
-        cleaned_client = client_mobile.replace("+91", "").strip()
-        
-        if cleaned_verified[-10:] != cleaned_client[-10:]:
-            raise HTTPException(
-                status_code=400, 
-                detail="Security Mismatch Violation: The verified device number does not correspond with the target database request parameters."
-            )
+    if not client_mobile.startswith("+"):
+        if client_mobile.startswith("91") and len(client_mobile) > 10:
+            client_mobile = f"+{client_mobile}"
+        else:
+            client_mobile = f"+91{client_mobile}"
             
-        return {
-            "status": "Success", 
-            "message": "Authentication state validated successfully against identity infrastructure token",
-            "uid": firebase_uid
-        }
-        
-    except auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=401, detail="Authentication Failure: Transmission token has expired. Please refresh verification.")
-    except auth.InvalidIdTokenError:
-        raise HTTPException(status_code=401, detail="Authentication Failure: Cryptographic token verification failed. Suspicious transaction blocked.")
+    try:
+        # Twilio token handshakes processing check
+        verification_check = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
+            .verification_checks \
+            .create(to=client_mobile, code=code)
+            
+        if verification_check.status == "approved":
+            print(f"[TWILIO VALIDATED] Session authentication approved for {client_mobile}")
+            return {"status": "Success", "message": "OTP Verified Successfully!"}
+        else:
+            raise HTTPException(status_code=400, detail="Invalid OTP: Cryptographic validation mismatch.")
     except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Identity Validation Pipeline Breakdown: {str(e)}")
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=400, detail=f"Twilio Validation Execution Error: {str(e)}")
 
+# ==================== INTEGRATED RAZORPAYX PAYOUT REDEEM ====================
 
-# 🔥 INTEGRATED RAZORPAYX REAL PAYOUT REDEEM ENDPOINT
 @app.post("/redeem/{qr_id}")
 def execute_instant_payout(qr_id: str, mobile: str, upi: str):
     clean_id = str(qr_id).lower().strip()
     
-    # Fetch RazorpayX Credentials from Environment Setup
     RAZORPAYX_KEY_ID = os.getenv("RAZORPAYX_KEY_ID")
     RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAYX_SECRET_KEY")
     ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER")
@@ -167,10 +158,7 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
             if str(qr["qr_code_id"]).lower().strip() == clean_id:
                 qr_reference = qr
                 if qr["is_redeemed"]:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail="This QR code/coupon has already been redeemed!"
-                    )
+                    raise HTTPException(status_code=400, detail="This QR code/coupon has already been redeemed!")
                 reward_amount = int(qr["assigned_amount"])
                 break
 
@@ -195,7 +183,7 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
         
         return {
             "status": "Success", 
-            "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully (Live Keys Not Switched)!"
+            "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully!"
         }
     
     payload_data = {
@@ -206,9 +194,7 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
         "purpose": "cashback",
         "fund_account": {
             "account_type": "vpa",
-            "vpa": {
-                "address": str(upi).strip()
-            }
+            "vpa": {"address": str(upi).strip()}
         },
         "queue_if_low_balance": True,
         "reference_id": unique_ref_id,
@@ -252,7 +238,6 @@ def execute_instant_payout(qr_id: str, mobile: str, upi: str):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Payout API error: {str(e)}")
-
 
 # ==================== ADMIN CORE ENDPOINTS ========================
 
