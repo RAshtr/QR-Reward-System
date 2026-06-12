@@ -28,6 +28,7 @@ TWILIO_AUTH_TOKEN = TWONT_AUTH_TOKEN
 
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
+VERIFY_SERVICE_SID = "VA8323cf115a12bd9a831afd2fb9fd5223"
 # Twilio Verify Service setup: Ye automatic bina number ke backend messaging handle karti hai
 try:
     # Ek baar account level standard configuration link verify karne ke liye
