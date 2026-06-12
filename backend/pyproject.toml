@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "maruthi-electrodes-reward-backend"
+version = "0.1.0"
+description = "Backend for QR Reward System"
+authors = ["Ravi Shankar Tripathi"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.100.0"
+uvicorn = "^0.22.0"
+pydantic = "^2.0"
+requests = "^2.31.0"
+twilio = "^9.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
