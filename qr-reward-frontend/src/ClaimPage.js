@@ -16,7 +16,7 @@ const ClaimPage = () => {
     const [confirmationResult, setConfirmationResult] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // 🔥 NEW: State metrics to capture campaign active locks
+    // 🔥 State metrics to capture campaign active locks
     const [showLockPopup, setShowLockPopup] = useState(false);
     const [campaignStartDate, setCampaignStartDate] = useState("");
 
@@ -24,12 +24,46 @@ const ClaimPage = () => {
     const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
     // Hooks framework to initialize Google Invisible reCAPTCHA on component mount
-    // Lifecycle monitoring instance to execute validation checks against QR payloads
+    useEffect(() => {
+        const recaptchaContainer = document.getElementById('recaptcha-invisible-box');
+        
+        if (recaptchaContainer && !window.recaptchaVerifier) {
+            try {
+                window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-invisible-box', {
+                    'size': 'invisible',
+                    'callback': (response) => {
+                        console.log("reCAPTCHA validation token generated successfully");
+                    },
+                    'expired-callback': () => {
+                        console.log("reCAPTCHA validation handshake expired. Evicting cache.");
+                        if (window.recaptchaVerifier) {
+                            window.recaptchaVerifier.clear();
+                            window.recaptchaVerifier = null;
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("Critical error during reCAPTCHA verification binding:", err);
+            }
+        }
+
+        return () => {
+            if (window.recaptchaVerifier) {
+                try {
+                    window.recaptchaVerifier.clear();
+                    window.recaptchaVerifier = null;
+                } catch (e) {
+                    console.error("Memory deallocation failure on reCAPTCHA reference:", e);
+                }
+            }
+        };
+    }, []);
+
+    // 🎯 SINGLE CLEAN LIFECYCLE EFFECT WITH CORRECT RESPONSE PARSING
     useEffect(() => {
         const verifyQR = async () => {
             try {
                 const cleanId = String(qr_id).toLowerCase().trim();
-                // Exact URL hit to matching route
                 const response = await fetch(`${API_BASE}/claim/${cleanId}`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
@@ -38,58 +72,18 @@ const ClaimPage = () => {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    // 🎯 Check if backend blocked it due to start date condition
-                    if (response.status === 400 && data.detail && data.detail.includes("activate_date")) {
-                        const extractedDate = data.detail.split(":")[1]; // Get YYYY-MM-DD
-                        setCampaignStartDate(extractedDate);
-                        setShowLockPopup(true);
-                        setStatus('active'); // Dynamic window view freeze constraint
-                        return;
-                    }
                     throw new Error(data.detail || "Invalid or Expired Voucher Code");
                 }
 
-                // Agar check clear ho gaya, toh baki regular process chalne do
-                setQrData(data);
-                setStatus(data.is_redeemed ? 'redeemed' : 'active');
-
-            } catch (err) {
-                console.error("Voucher authentication validation error:", err);
-                alert("Backend Error: " + err.message);
-                setStatus('error');
-            }
-        };
-
-        if (qr_id) {
-            verifyQR();
-        }
-    }, [qr_id, API_BASE]);
-
-    // Lifecycle monitoring instance to execute validation checks against QR payloads
-    useEffect(() => {
-        const verifyQR = async () => {
-            try {
-                const cleanId = String(qr_id).toLowerCase().trim();
-                const response = await fetch(`${API_BASE}/api/v1/claim/${cleanId}`, {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    // 🎯 Catch high-res 400 validation error thrown from main.py start_date restriction
-                    if (response.status === 400 && data.detail.includes("activate")) {
-                        // Extract exact date string hidden inside error details parsing
-                        const dateMatch = data.detail.match(/\d{4}-\d{2}-\d{2}/);
-                        setCampaignStartDate(dateMatch ? dateMatch[0] : "Coming Soon");
-                        setShowLockPopup(true);
-                        setStatus('active'); // Keep container active but locked underneath
-                        return;
-                    }
-                    throw new Error(data.detail || "Invalid or Expired Voucher Code");
+                // 🎯 AGAR BACKEND NE BOLA NOT_STARTED TO POPUP ON KARO
+                if (data.status === 'not_started') {
+                    setCampaignStartDate(data.start_date);
+                    setShowLockPopup(true);
+                    setStatus('active'); // Keep UI active but layout is overlaid with popup
+                    return;
                 }
 
+                // Agar aaj ki tareekh hai ya beet chuki hai, toh normal flow load hoga
                 setQrData(data);
                 setStatus(data.is_redeemed ? 'redeemed' : 'active');
 
@@ -201,7 +195,7 @@ const ClaimPage = () => {
         <div style={containerStyle}>
             <div id="recaptcha-invisible-box" style={{ position: 'absolute', top: 0, left: 0 }}></div>
 
-            {/* 🔥 NEW LAYER OVERLAY POPUP: CAMPAIGN LOCKED RENDER PANEL 🔥 */}
+            {/* 🔥 LAYOVER POPUP: TRIGGERED WHEN CAMPAIGN NOT STARTED YET 🔥 */}
             {showLockPopup && (
                 <div style={overlayStyle}>
                     <div style={popupCardStyle}>
