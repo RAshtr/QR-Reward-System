@@ -650,6 +650,24 @@
                     "redeemed_at": null
                 }
             ]
+        },
+        {
+            "id": 41,
+            "series_name": "pt1",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-20",
+            "expiry_date": "2026-06-25",
+            "qr_list": [
+                {
+                    "qr_code_id": "0426da30-9645-4861-b12f-72b0fcaa710d",
+                    "assigned_amount": 9.97,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
         }
     ],
     "total_payout": 0

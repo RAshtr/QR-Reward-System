@@ -89,14 +89,13 @@ def create_campaign(campaign: CampaignCreate):
     save_db(db)
     return campaign_dict
 
-# 🎯 SINGLE CLEAN ROUTE WITH ALL VALIDATIONS INTEGRATED
+# 🎯 FOOLPROOF VALIDATION ROUTE (Strict HTTP 400 Exception Engine)
 @app.get("/claim/{qr_id}")
 def verify_customer_scan(qr_id: str):
     db = load_db()
     target_campaign = None
     target_qr = None
     
-    # Loop chala kar QR code dhoondho
     for campaign in db.get("campaigns", []):
         for qr in campaign.get("qr_list", []):
             if str(qr.get("qr_code_id")).strip().lower() == str(qr_id).strip().lower():
@@ -109,26 +108,31 @@ def verify_customer_scan(qr_id: str):
     if not target_campaign or not target_qr:
         raise HTTPException(status_code=404, detail="QR Code Not Found")
         
+    # Python pure date objects execution logic
     current_date = datetime.now().date()
     
-    # 1. 🔥 START DATE VALIDATION (Popup Trigger Check)
-    start_date_str = target_campaign.get("start_date")
-    if start_date_str:
-        campaign_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    start_date_raw = target_campaign.get("start_date")
+    expiry_date_raw = target_campaign.get("expiry_date")
+    
+    # 1. 🔥 STRICT START DATE LOCK (Throws explicit 400 block message)
+    if start_date_raw:
+        clean_start = start_date_raw.split("T")[0].strip()
+        campaign_start = datetime.strptime(clean_start, "%Y-%m-%d").date()
+        
         if current_date < campaign_start:
-            return {
-                "status": "not_started", 
-                "start_date": start_date_str
-            }
+            raise HTTPException(
+                status_code=400, 
+                detail=f"campaign_not_started:{clean_start}"
+            )
             
-    # 2. 🔥 EXPIRY DATE VALIDATION
-    expiry_date_str = target_campaign.get("expiry_date")
-    if expiry_date_str:
-        campaign_expiry = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+    # 2. 🔥 EXPIRY DATE CHECK
+    if expiry_date_raw:
+        clean_expiry = expiry_date_raw.split("T")[0].strip()
+        campaign_expiry = datetime.strptime(clean_expiry, "%Y-%m-%d").date()
         if current_date > campaign_expiry:
             raise HTTPException(status_code=400, detail="This voucher coupon batch has already expired!")
             
-    # 3. 🔥 ALREADY REDEEMED PROTECTION CHECK
+    # 3. 🔥 ALREADY REDEEMED CHECK
     if target_qr.get("is_redeemed"):
         return {
             "status": "success",
@@ -136,7 +140,6 @@ def verify_customer_scan(qr_id: str):
             "assigned_amount": target_qr.get("assigned_amount")
         }
         
-    # Agar saari conditions pass ho gayi (Yaani date aaj ki hai aur valid hai)
     return {
         "status": "success",
         "is_redeemed": False,

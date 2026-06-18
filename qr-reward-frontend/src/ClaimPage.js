@@ -3,27 +3,21 @@ import { useParams } from 'react-router-dom';
 import { auth, RecaptchaVerifier, signInWithPhoneNumber } from './firebase';
 
 const ClaimPage = () => {
-    // Extract dynamic QR identifier from the route parameters
     const { qr_id } = useParams();
     
-    // Core states for managing application data and UI status
     const [qrData, setQrData] = useState(null);
     const [status, setStatus] = useState('loading');
     const [formData, setFormData] = useState({ mobile: '', upi: '', otp: '' });
     
-    // State indicators for Firebase Authentication orchestration
     const [otpSent, setOtpSent] = useState(false);
     const [confirmationResult, setConfirmationResult] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // 🔥 State metrics to capture campaign active locks
     const [showLockPopup, setShowLockPopup] = useState(false);
     const [campaignStartDate, setCampaignStartDate] = useState("");
 
-    // Fallback assignment for backend API integration node
     const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
-    // Hooks framework to initialize Google Invisible reCAPTCHA on component mount
     useEffect(() => {
         const recaptchaContainer = document.getElementById('recaptcha-invisible-box');
         
@@ -35,7 +29,7 @@ const ClaimPage = () => {
                         console.log("reCAPTCHA validation token generated successfully");
                     },
                     'expired-callback': () => {
-                        console.log("reCAPTCHA validation handshake expired. Evicting cache.");
+                        console.log("reCAPTCHA handshake expired. Evicting cache.");
                         if (window.recaptchaVerifier) {
                             window.recaptchaVerifier.clear();
                             window.recaptchaVerifier = null;
@@ -59,7 +53,7 @@ const ClaimPage = () => {
         };
     }, []);
 
-    // 🎯 SINGLE CLEAN LIFECYCLE EFFECT WITH CORRECT RESPONSE PARSING
+    // 🎯 SINGLE STACK VERIFICATION HOOK (Intercepts 400 Lock Exceptions)
     useEffect(() => {
         const verifyQR = async () => {
             try {
@@ -72,18 +66,17 @@ const ClaimPage = () => {
                 const data = await response.json();
 
                 if (!response.ok) {
+                    // 🎯 INTERCEPT HTTP 400 EXCEPTION THROWS FOR START_DATE CAMPAIGN LOCK
+                    if (data.detail && data.detail.includes("campaign_not_started")) {
+                        const extractedDate = data.detail.split(":")[1];
+                        setCampaignStartDate(extractedDate);
+                        setShowLockPopup(true);
+                        setStatus('active'); // Keep UI alive but layout is overlaid with popup
+                        return;
+                    }
                     throw new Error(data.detail || "Invalid or Expired Voucher Code");
                 }
 
-                // 🎯 AGAR BACKEND NE BOLA NOT_STARTED TO POPUP ON KARO
-                if (data.status === 'not_started') {
-                    setCampaignStartDate(data.start_date);
-                    setShowLockPopup(true);
-                    setStatus('active'); // Keep UI active but layout is overlaid with popup
-                    return;
-                }
-
-                // Agar aaj ki tareekh hai ya beet chuki hai, toh normal flow load hoga
                 setQrData(data);
                 setStatus(data.is_redeemed ? 'redeemed' : 'active');
 
@@ -99,7 +92,6 @@ const ClaimPage = () => {
         }
     }, [qr_id, API_BASE]);
 
-    // Triggers standard dynamic network message payload deployment sequence
     const handleSendOtp = async () => {
         if (!formData.mobile || formData.mobile.length !== 10) {
             alert("Please enter a valid 10-digit mobile number");
@@ -139,7 +131,6 @@ const ClaimPage = () => {
         }
     };
 
-    // Submits credentials matrix to clear token matching sequences
     const handleVerifyAndRedeem = async () => {
         if (!formData.otp || formData.otp.length !== 6) {
             alert("Please enter the valid 6-digit OTP received on your phone");
@@ -170,7 +161,7 @@ const ClaimPage = () => {
             if (redeemRes.ok && redeemData.status === "Success") {
                 setStatus('redeemed');
             } else {
-                alert(`Redemption Failed: ${redeemData.detail || "Transaction declined from backend gateway node"}`);
+                alert(`Redemption Failed: ${redeemData.detail || "Transaction declined from backend"}`);
             }
         } catch (error) {
             console.error("Cryptographic signature match broken or code mismatch:", error);
@@ -195,7 +186,7 @@ const ClaimPage = () => {
         <div style={containerStyle}>
             <div id="recaptcha-invisible-box" style={{ position: 'absolute', top: 0, left: 0 }}></div>
 
-            {/* 🔥 LAYOVER POPUP: TRIGGERED WHEN CAMPAIGN NOT STARTED YET 🔥 */}
+            {/* 🔥 MODAL POPUP: RENDERS WHEN CAMPAIGN IS LOCKED 🔥 */}
             {showLockPopup && (
                 <div style={overlayStyle}>
                     <div style={popupCardStyle}>
@@ -215,7 +206,7 @@ const ClaimPage = () => {
             )}
 
             <div style={cardStyle}>
-                {status === 'active' && (
+                {status === 'active' && !showLockPopup && (
                     <div>
                         <div style={badgeStyle}>🎉 PHYSICAL VOUCHER UNLOCKED</div>
                         <h2 style={mainTitleStyle}>You've Won!</h2>
@@ -289,7 +280,7 @@ const ClaimPage = () => {
     );
 };
 
-// UI Element styles config layouts
+// Layout configurations
 const containerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#020617', padding: '20px', fontFamily: '"Segoe UI", Roboto, sans-serif' };
 const cardStyle = { backgroundColor: '#0f172a', padding: '30px', borderRadius: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', width: '100%', maxWidth: '380px', textAlign: 'center', border: '1px solid #1e293b' };
 const badgeStyle = { backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', display: 'inline-block', letterSpacing: '0.5px', marginBottom: '15px' };
@@ -304,8 +295,7 @@ const buttonStyle = { backgroundColor: '#38bdf8', color: '#020617', padding: '14
 const loaderStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontWeight: 'bold', backgroundColor: '#020617', color: '#38bdf8', fontSize: '16px' };
 const errorContainerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontWeight: 'bold', backgroundColor: '#020617', color: '#f43f5e', fontSize: '16px', padding: '20px', textAlign: 'center' };
 
-// 🔥 NEW INLINE STYLES FOR OVERLAY MOCK CARD
-const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' };
+const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2, 6, 23, 0.94)', backdropFilter: 'blur(12px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' };
 const popupCardStyle = { backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px 24px', maxWidth: '370px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' };
 const iconCircle = { width: '80px', height: '80px', backgroundColor: 'rgba(56, 189, 248, 0.08)', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 24px auto', border: '1px solid rgba(56, 189, 248, 0.15)', fontSize: '36px' };
 const popupTitleStyle = { color: '#ffffff', fontSize: '22px', fontWeight: '900', margin: '0 0 12px 0', letterSpacing: '-0.5px' };
