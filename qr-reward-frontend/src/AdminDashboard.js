@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
-import QRCode from 'qrcode';
 
 const AdminDashboard = ({ onLogout }) => {
   const [analytics, setAnalytics] = useState(null);
@@ -8,14 +7,23 @@ const AdminDashboard = ({ onLogout }) => {
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [loading, setLoading] = useState(true);
   
+  // 1. Form State me start_date field map kiya
   const initialFormState = {
-    series_name: '', min_amount: '', max_amount: '', quantity: '', expiry_date: ''
+    series_name: '', 
+    min_amount: '', 
+    max_amount: '', 
+    quantity: '', 
+    start_date: '',   // 👈 Added
+    expiry_date: ''
   };
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // FIXED INTERFACE ZONE - Numeric path lock matching your active network node
-  const API_BASE = "https://qr-reward-system.onrender.com"; // Apne sahi Render URL se replace karein
+  // 🔥 LIVE PRODUCTION DRIVEN PATH ENGINE
+  const API_BASE = window.location.origin.includes("localhost") 
+    ? "http://localhost:8000" 
+    : window.location.origin.replace(":3000", ":8000");
+
   const THEME_COLOR = "#38bdf8"; 
 
   const fetchData = async (autoSelectId = null) => {
@@ -28,11 +36,9 @@ const AdminDashboard = ({ onLogout }) => {
       const campaignsData = await campaignsRes.json();
       
       if (Array.isArray(campaignsData) && campaignsData.length > 0) {
-        // Strict Type sorting checking to always bring newest batch at top
         const sortedCampaigns = campaignsData.sort((a, b) => Number(b.id) - Number(a.id));
         setCampaignList(sortedCampaigns);
         
-        // Strict string coercion validation to resolve dropdown visibility glitch
         if (autoSelectId) {
           setSelectedCampaign(String(autoSelectId));
         } else if (sortedCampaigns.length > 0) {
@@ -44,24 +50,24 @@ const AdminDashboard = ({ onLogout }) => {
       }
       setLoading(false);
     } catch (error) {
-      console.error("Fetch Error:", error);
+      console.error("Fetch Error Matrix:", error);
       setLoading(false);
     }
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  // 2. Submit payload data me start_date binding handle ki
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // 100% FIXED TYPE MATRIX: Parsing parameters directly into safe backend sanitizer numbers
       const submitPayload = {
         series_name: String(formData.series_name || "BATCH").trim(),
         min_amount: formData.min_amount ? Number(formData.min_amount) : 1,
         max_amount: formData.max_amount ? Number(formData.max_amount) : 5,
         quantity: formData.quantity ? Number(formData.quantity) : 1,
-        expiry_date: String(formData.expiry_date || "2026-12-31"),
-        expiry: String(formData.expiry_date || "2026-12-31")       
+        start_date: String(formData.start_date || "2026-06-18"), // 👈 Added
+        expiry_date: String(formData.expiry_date || "2026-12-31")
       };
 
       const response = await fetch(`${API_BASE}/admin/campaigns/`, {
@@ -78,19 +84,30 @@ const AdminDashboard = ({ onLogout }) => {
       if (!response.ok) {
         throw new Error(resData.detail || "Server validation failed");
       }
-      
-      if (formData.series_name && formData.expiry_date) {
-        localStorage.setItem(`local_exp_${formData.series_name}`, formData.expiry_date);
-      }
 
       alert("Batch Generated Successfully!");
       setFormData(initialFormState); 
-      
-      // Deep response state injection
       await fetchData(resData.id);
     } catch (error) { 
-      console.error("Submission Error Matrix:", error.message);
+      console.error("Submission Failure:", error.message);
       alert("Error generating batch."); 
+    }
+  };
+
+  const loadImageAsBase64 = async (url) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Backend image sync failed");
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error("Base64 Conversion Error:", error);
+      throw error;
     }
   };
 
@@ -98,89 +115,45 @@ const AdminDashboard = ({ onLogout }) => {
     if (!selectedCampaign) return alert("Select a batch from the list first!");
     const campaign = campaignList.find(c => String(c.id) === String(selectedCampaign));
     if (!campaign || !campaign.qr_list || campaign.qr_list.length === 0) {
-        return alert("QR data not found inside this target batch!");
+      return alert("QR data not found inside this target batch!");
     }
 
-    // FIXED MOBILE SCANNING COLLAPSE: Routing direct onto explicit LAN React standard IP endpoint instead of localhost
-    const baseLiveUrl = "https://qr-reward-system-gilt.vercel.app";
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    const cardWidth = 182;
-    const cardHeight = 85; 
-    const startX = 14;
-    const startY = 15;
-    const gapY = 10;
+    const cardWidth = 45; 
+    const cardHeight = 20; 
+    const startX = 14; 
+    const startY = 18; 
+    
+    const gapX = 4;
+    const gapY = 3;
+    const maxColumns = 4;
+    const maxRows = 10; 
 
     try {
       for (let i = 0; i < campaign.qr_list.length; i++) {
         const qr = campaign.qr_list[i];
         const fullUuidStr = String(qr.qr_code_id || qr.id || qr.voucher_id).toLowerCase().trim();
-        const claimUrl = `${baseLiveUrl}/claim/${fullUuidStr}`;
         
-        const qrDataUri = await QRCode.toDataURL(claimUrl, { width: 500, margin: 1, errorCorrectionLevel: 'H' });
+        const dynamicStickerUrl = `${API_BASE}/api/v1/generate-print-qr?qr_id=${fullUuidStr}&company_name=MARUTHI`;
+        const base64ImageString = await loadImageAsBase64(dynamicStickerUrl);
 
-        if (i > 0 && i % 3 === 0) doc.addPage();
-        const row = i % 3;
+        const itemsPerPage = maxColumns * maxRows; 
+        if (i > 0 && i % itemsPerPage === 0) doc.addPage();
+        
+        const pageIndex = i % itemsPerPage;
+        const col = pageIndex % maxColumns;
+        const row = Math.floor(pageIndex / maxColumns);
+        
+        const x = startX + col * (cardWidth + gapX);
         const y = startY + row * (cardHeight + gapY);
 
-        doc.setDrawColor(15, 23, 42);
-        doc.setLineWidth(0.6);
-        doc.rect(startX, y, cardWidth, cardHeight);
-
-        doc.setFillColor(15, 23, 42);
-        doc.rect(startX + 0.5, y + 0.5, cardWidth - 1, 14, 'F');
-        
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.text("MARUTHI ELECTRODES", startX + 6, y + 9);
-        
-        doc.setFontSize(8.5);
-        doc.setTextColor(148, 163, 184);
-        doc.text("SERIES: " + String(campaign.series_name).toUpperCase(), startX + cardWidth - 6, y + 9, { align: 'right' });
-
-        doc.setFillColor(255, 255, 255);
-        doc.rect(startX + 5, y + 19, 52, 52, 'F');
-        doc.addImage(qrDataUri, 'PNG', startX + 5, y + 19, 52, 52);
-
-        doc.setTextColor(15, 23, 42);
-        doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(13);
-        doc.text("WELCOME TO MARUTHI ELECTRODES REWARDS", startX + 64, y + 26);
-        
-        doc.setTextColor(71, 85, 105);
-        doc.setFont('Helvetica', 'normal');
-        doc.setFontSize(8.5);
-        let instructions = [
-          "Congratulations! You have received an official corporate reward token.",
-          "",
-          "How to Claim Your Reward:",
-          "1. Open your smartphone camera or any secure digital lens scanner.",
-          "2. Scan the QR code on the left side to load your web gateway.",
-          "3. Enter your active mobile number and complete secure OTP verification.",
-          "4. Provide your valid UPI ID to execute instant bank routing transfer.",
-          "",
-          "Note: Payout processing is monitored and handled securely via corporate node."
-        ];
-        doc.text(instructions, startX + 64, y + 34);
-
-        doc.setDrawColor(226, 232, 240);
-        doc.line(startX + 4, y + 74, startX + cardWidth - 4, y + 74);
-
-        doc.setTextColor(100, 116, 139);
-        doc.setFont('Helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.text("SECURE SYSTEM TRACKING UUID:", startX + 6, y + 78);
-        
-        doc.setFont('Helvetica', 'bold'); 
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(9.5);
-        doc.text(fullUuidStr, startX + 6, y + 82); 
+        doc.addImage(base64ImageString, 'PNG', x, y, cardWidth, cardHeight);
       }
-      doc.save(`${campaign.series_name}_Maruthi_Electrodes_Coupons.pdf`);
+      doc.save(`${campaign.series_name}_Official_Maruthi_Stickers.pdf`);
     } catch (err) { 
       console.error(err);
-      alert("Failed to generate PDF"); 
+      alert("Failed to sync structural dynamic labels. Check backend server configuration."); 
     }
   };
 
@@ -214,7 +187,7 @@ const AdminDashboard = ({ onLogout }) => {
           <div style={{...bottomBar, backgroundColor: '#a855f7'}}></div>
         </div>
         <div style={premiumCard}>
-          <p style={cardLabel}>TOTAL UPI PAYOUT DISTRIBUTED</p>
+          <p style={cardLabel}>TOTAL PAYOUT DISTRIBUTED</p>
           <h2 style={{...cardValue, color: '#10b981'}}>₹{Math.floor(analytics?.total_payout_distributed || 0)}</h2>
           <div style={{...bottomBar, backgroundColor: '#10b981'}}></div>
         </div>
@@ -231,7 +204,6 @@ const AdminDashboard = ({ onLogout }) => {
                 <th style={thStyle}>VALID UNTIL</th>
                 <th style={thStyle}>REDEEMED AT</th>
                 <th style={thStyle}>CUSTOMER MOBILE</th>
-                <th style={thStyle}>UPI ADDRESS</th>
                 <th style={thStyle}>AMOUNT</th>
                 <th style={thStyle}>STATUS</th>
               </tr>
@@ -245,7 +217,6 @@ const AdminDashboard = ({ onLogout }) => {
                       <td style={{...tdStyle, color: '#f43f5e', fontWeight: 'bold'}}>{campaign.expiry_date}</td>
                       <td style={tdStyle}>{new Date(txn.redeemed_at).toLocaleString()}</td>
                       <td style={{ ...tdStyle, fontWeight: '600' }}>{txn.redeemed_mobile}</td>
-                      <td style={{...tdStyle, color: THEME_COLOR}}>{txn.redeemed_upi}</td>
                       <td style={{ ...tdStyle, color: '#10b981', fontWeight: 'bold' }}>₹{txn.assigned_amount}</td>
                       <td style={tdStyle}><span style={badgeStyle}>SUCCESS</span></td>
                     </tr>
@@ -274,6 +245,11 @@ const AdminDashboard = ({ onLogout }) => {
             </div>
             <label style={fieldLabel}>Quantity</label>
             <input style={inputField} type="number" value={formData.quantity || ''} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+            
+            {/* 3. Render Form Input elements group block (Expiry ke exact upar Start Date add ki) */}
+            <label style={fieldLabel}>Start Date (Active From)</label>
+            <input style={inputField} type="date" value={formData.start_date || ''} onChange={e => setFormData({ ...formData, start_date: e.target.value })} required />
+
             <label style={fieldLabel}>Expiry Date</label>
             <input style={inputField} type="date" value={formData.expiry_date || ''} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} required />
             <button type="submit" style={primaryBtn}>GENERATE CRYPTO CODES</button>
@@ -300,6 +276,7 @@ const AdminDashboard = ({ onLogout }) => {
   );
 };
 
+// Styles object configurations
 const mainContainer = { padding: '40px', backgroundColor: '#020617', minHeight: '100vh', fontFamily: 'sans-serif', color: '#f8fafc' };
 const headerSection = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' };
 const premiumTitle = { margin: 0, fontSize: '28px', fontWeight: '900' };

@@ -1,307 +1,212 @@
-import os
-import requests
-import uuid
-import random
-from datetime import datetime
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Any
-from twilio.rest import Client
+from typing import List, Optional
+import qrcode
+from PIL import Image, ImageDraw
+import io
+import os
+import json
+from datetime import datetime
 
-app = FastAPI(title="Maruthi Electrodes Reward System API")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows requests from mobile devices and dynamic web environments
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ==================== TWILIO CONFIGURATION ====================
-# Aapke provided dynamic master credentials
-TWONT_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "AC_DUMMY_VARIABLE_PLACEHOLDER")
-TWONT_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "TOKEN_DUMMY_VARIABLE_PLACEHOLDER")
-TWILIO_ACCOUNT_SID = TWONT_ACCOUNT_SID
-TWILIO_AUTH_TOKEN = TWONT_AUTH_TOKEN
+DB_FILE = "campaigns_database.json"
 
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
-VERIFY_SERVICE_SID = "VA8323cf115a12bd9a831afd2fb9fd5223"
-# Twilio Verify Service setup: Ye automatic bina number ke backend messaging handle karti hai
-try:
-    # Ek baar account level standard configuration link verify karne ke liye
-    services = twilio_client.verify.v2.services.list(limit=1)
-    if services:
-        VERIFY_SERVICE_SID = services[0].sid
-    else:
-        # Agar koi service nahi bani, toh automatic ek nayi custom build service create ho jayegi
-        service = twilio_client.verify.v2.services.create(friendly_name="Maruthi Rewards")
-        VERIFY_SERVICE_SID = service.sid
-    print(f"[TWILIO] Service initialized successfully. Service SID: {VERIFY_SERVICE_SID}")
-except Exception as e:
-    VERIFY_SERVICE_SID = "VAffffffffffffffffffffffffffffffff"
-    print(f"[TWILIO WARNING] Setup active via fallback channel: {str(e)}")
-
-campaigns_db = []
-payouts_db = []
-
-# ==================== API MODELS ====================
-class OTPRequest(BaseModel):
-    mobile: str
-
-class VerifyOTPRequest(BaseModel):
-    mobile: str
-    otp_code: str
-
-class CampaignPayload(BaseModel):
-    series_name: Any = None
-    min_amount: Any = None
-    max_amount: Any = None
-    quantity: Any = None
-    expiry_date: Any = None
-    expiry: Any = None
-
-# ==================== USER REDEMPTION ENGINE ====================
-
-@app.get("/claim/{qr_id}")
-def verify_voucher_code(qr_id: str):
-    clean_id = str(qr_id).lower().strip()
-    
-    for campaign in campaigns_db:
-        for qr in campaign["qr_list"]:
-            if str(qr["qr_code_id"]).lower().strip() == clean_id:
-                return {
-                    "status": "Valid",
-                    "series_name": campaign["series_name"],
-                    "expiry_date": campaign["expiry_date"],
-                    "assigned_amount": int(qr["assigned_amount"]),
-                    "amount": int(qr["amount"]),
-                    "is_redeemed": qr["is_redeemed"]
-                }
-                
-    return {
-        "status": "Valid",
-        "series_name": "MARUTHI_ELECTRODES_REWARD",
-        "expiry_date": "2026-12-31",
-        "assigned_amount": random.randint(1, 5),
-        "amount": random.randint(1, 5),
-        "is_redeemed": False
-    }
-
-# ==================== REAL-TIME TWILIO OTP GATEWAY ====================
-
-@app.post("/send-otp")
-def send_real_time_otp(payload: OTPRequest):
-    client_mobile = payload.mobile.strip()
-    
-    # Format number: Ensure +91 layout for international carrier delivery
-    if not client_mobile.startswith("+"):
-        if client_mobile.startswith("91") and len(client_mobile) > 10:
-            client_mobile = f"+{client_mobile}"
-        else:
-            client_mobile = f"+91{client_mobile}"
-            
+def load_db():
+    if not os.path.exists(DB_FILE):
+        return {"campaigns": [], "total_payout": 0}
     try:
-        # Twilio official validation router dispatch
-        verification = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
-            .verifications \
-            .create(to=client_mobile, channel='sms')
-            
-        print(f"[TWILIO SUCCESS] OTP dispatch status: {verification.status} to {client_mobile}")
-        return {"status": "Success", "message": "OTP sent successfully via Twilio Network Cluster!"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Twilio Gateway Dispatch Failure: {str(e)}")
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"campaigns": [], "total_payout": 0}
 
-@app.post("/verify-otp")
-def verify_customer_otp(payload: VerifyOTPRequest):
-    client_mobile = payload.mobile.strip()
-    code = payload.otp_code.strip()
-    
-    if not client_mobile.startswith("+"):
-        if client_mobile.startswith("91") and len(client_mobile) > 10:
-            client_mobile = f"+{client_mobile}"
-        else:
-            client_mobile = f"+91{client_mobile}"
-            
-    try:
-        # Twilio token handshakes processing check
-        verification_check = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
-            .verification_checks \
-            .create(to=client_mobile, code=code)
-            
-        if verification_check.status == "approved":
-            print(f"[TWILIO VALIDATED] Session authentication approved for {client_mobile}")
-            return {"status": "Success", "message": "OTP Verified Successfully!"}
-        else:
-            raise HTTPException(status_code=400, detail="Invalid OTP: Cryptographic validation mismatch.")
-    except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        raise HTTPException(status_code=400, detail=f"Twilio Validation Execution Error: {str(e)}")
+def save_db(data):
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
-# ==================== INTEGRATED RAZORPAYX PAYOUT REDEEM ====================
-
-@app.post("/redeem/{qr_id}")
-def execute_instant_payout(qr_id: str, mobile: str, upi: str):
-    clean_id = str(qr_id).lower().strip()
-    
-    RAZORPAYX_KEY_ID = os.getenv("RAZORPAYX_KEY_ID")
-    RAZORPAYX_KEY_SECRET = os.getenv("RAZORPAYX_SECRET_KEY")
-    ACCOUNT_NUMBER = os.getenv("RAZORPAYX_ACCOUNT_NUMBER")
-    PAYOUT_MODE = os.getenv("PAYOUT_MODE", "sandbox").lower()
-    
-    reward_amount = 5  
-    qr_reference = None
-    
-    for campaign in campaigns_db:
-        for qr in campaign["qr_list"]:
-            if str(qr["qr_code_id"]).lower().strip() == clean_id:
-                qr_reference = qr
-                if qr["is_redeemed"]:
-                    raise HTTPException(status_code=400, detail="This QR code/coupon has already been redeemed!")
-                reward_amount = int(qr["assigned_amount"])
-                break
-
-    amount_in_paise = reward_amount * 100  
-    unique_ref_id = str(uuid.uuid4())      
-    
-    if PAYOUT_MODE != "production" or not RAZORPAYX_KEY_ID or not ACCOUNT_NUMBER:
-        if qr_reference:
-            qr_reference["is_redeemed"] = True
-            qr_reference["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            qr_reference["redeemed_mobile"] = mobile
-            qr_reference["redeemed_upi"] = upi
-        
-        payouts_db.append({
-            "id": len(payouts_db) + 1,
-            "mobile": mobile,
-            "upi": upi,
-            "amount": reward_amount,
-            "status": "processed",
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-        })
-        
-        return {
-            "status": "Success", 
-            "message": f"Sandbox Mode: Mock ₹{reward_amount} payout simulated successfully!"
-        }
-    
-    payload_data = {
-        "account_number": ACCOUNT_NUMBER,
-        "amount": amount_in_paise,
-        "currency": "INR",
-        "mode": "UPI",
-        "purpose": "cashback",
-        "fund_account": {
-            "account_type": "vpa",
-            "vpa": {"address": str(upi).strip()}
-        },
-        "queue_if_low_balance": True,
-        "reference_id": unique_ref_id,
-        "narration": "Maruthi Reward"
-    }
-    
-    try:
-        response = requests.post(
-            "https://api.razorpay.com/v1/payouts",
-            json=payload_data,
-            auth=(RAZORPAYX_KEY_ID, RAZORPAYX_KEY_SECRET),
-            headers={"Content-Type": "application/json"}
-        )
-        
-        res_json = response.json()
-        
-        if response.status_code in [200, 201]:
-            if qr_reference:
-                qr_reference["is_redeemed"] = True
-                qr_reference["redeemed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                qr_reference["redeemed_mobile"] = mobile
-                qr_reference["redeemed_upi"] = upi
-            
-            payouts_db.append({
-                "id": len(payouts_db) + 1,
-                "mobile": mobile,
-                "upi": upi,
-                "amount": reward_amount,
-                "status": "processed",
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-            })
-            
-            return {
-                "status": "Success", 
-                "message": f"Payout of ₹{reward_amount} completed successfully via RazorpayX!",
-                "payout_id": res_json.get("id")
-            }
-        else:
-            error_desc = res_json.get("error", {}).get("description", "RazorpayX verification rejected the request.")
-            raise HTTPException(status_code=400, detail=error_desc)
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Payout API error: {str(e)}")
-
-# ==================== ADMIN CORE ENDPOINTS ========================
+class CampaignCreate(BaseModel):
+    series_name: str
+    min_amount: float
+    max_amount: float
+    quantity: int
+    start_date: str   # Format: YYYY-MM-DD
+    expiry_date: str
 
 @app.get("/admin/analytics")
 def get_analytics():
-    total_qrs = sum(len(c["qr_list"]) for c in campaigns_db)
-    total_payout = sum(p["amount"] for p in payouts_db)
-
+    db = load_db()
+    total_qrs = sum(c.get("quantity", 0) for c in db["campaigns"])
     return {
-        "total_campaigns": len(campaigns_db) if len(campaigns_db) > 0 else 1,
-        "total_qrs_generated": total_qrs if total_qrs > 0 else 5,
-        "total_payout_distributed": total_payout,
-        "payouts": payouts_db
+        "total_campaigns": len(db["campaigns"]),
+        "total_qrs_generated": total_qrs,
+        "total_payout_distributed": db.get("total_payout", 0)
     }
 
 @app.get("/admin/campaigns/")
 def get_campaigns():
-    return campaigns_db
+    db = load_db()
+    return db["campaigns"]
 
 @app.post("/admin/campaigns/")
-def create_campaign(payload: CampaignPayload):
-    new_id = len(campaigns_db) + 1
-    mock_qr_list = []
+def create_campaign(campaign: CampaignCreate):
+    import random, uuid
+    db = load_db()
+    new_id = len(db["campaigns"]) + 1
+    qr_list = []
     
-    try:
-        qty = int(payload.quantity) if payload.quantity else 1
-        min_val = int(float(payload.min_amount)) if payload.min_amount else 1
-        max_val = int(float(payload.max_amount)) if payload.max_amount else min_val
-    except Exception:
-        min_val, max_val, qty = 1, 5, 1
-        
-    if min_val < 1: min_val = 1
-    if max_val < min_val: max_val = min_val
-    
-    expiry_str = str(payload.expiry_date) if payload.expiry_date else "2026-12-31"
-    series_str = str(payload.series_name) if payload.series_name else f"Batch_{new_id}"
-    
-    for idx in range(qty):
-        fake_uuid = str(uuid.uuid4())
-        assigned_amt = random.randint(min_val, max_val)
-        
-        mock_qr_list.append({
-            "qr_code_id": str(fake_uuid),
-            "id": str(fake_uuid),
-            "voucher_id": str(fake_uuid),
-            "assigned_amount": int(assigned_amt),
-            "amount": int(assigned_amt),
+    for _ in range(campaign.quantity):
+        assigned = round(random.uniform(campaign.min_amount, campaign.max_amount), 2)
+        qr_list.append({
+            "qr_code_id": str(uuid.uuid4()),
+            "assigned_amount": assigned,
             "is_redeemed": False,
-            "redeemed_at": None,
-            "redeemed_mobile": None,
-            "redeemed_upi": None,
-            "expiry_date": expiry_str
+            "redeemed_mobile": "",
+            "redeemed_at": None
         })
-
-    new_campaign = {
-        "id": int(new_id),
-        "series_name": str(series_str),
-        "min_amount": int(min_val),
-        "max_amount": int(max_val),
-        "quantity": int(qty),
-        "expiry_date": expiry_str,
-        "expiry": expiry_str,
-        "qr_list": mock_qr_list
+        
+    campaign_dict = {
+        "id": new_id,
+        "series_name": campaign.series_name,
+        "min_amount": campaign.min_amount,
+        "max_amount": campaign.max_amount,
+        "quantity": campaign.quantity,
+        "start_date": campaign.start_date,
+        "expiry_date": campaign.expiry_date,
+        "qr_list": qr_list
     }
-    campaigns_db.append(new_campaign)
-    return new_campaign
+    
+    db["campaigns"].append(campaign_dict)
+    save_db(db)
+    return campaign_dict
+
+# 🔥 NEW ADDED: CUSTOMER SCAN CLAIM VALIDATION API ROUTER ENDPOINT
+# Jab customer QR scan karega, tab yeh route call hoga aur start_date enforce karega
+# 🔥 ROUTE PATH EXACT MATCH KAR DIYA (Hata diya /api/v1)
+@app.get("/claim/{qr_id}")
+def validate_and_claim_qr(qr_id: str):
+    db = load_db()
+    target_campaign = None
+    target_qr = None
+    
+    # Database parsing logic loop lookup
+    for campaign in db.get("campaigns", []):
+        for qr in campaign.get("qr_list", []):
+            if str(qr.get("qr_code_id")).strip().lower() == str(qr_id).strip().lower():
+                target_campaign = campaign
+                target_qr = qr
+                break
+        if target_campaign:
+            break
+            
+    if not target_campaign or not target_qr:
+        raise HTTPException(status_code=404, detail="Invalid QR Code Token")
+        
+    # Check 1: Live Verification for Campaign Start Date (Active From restriction)
+    current_date = datetime.now().date()
+    start_date_str = target_campaign.get("start_date")
+    
+    if start_date_str:
+        campaign_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        if current_date < campaign_start:
+            # 🎯 YAHAN HUM DETAILS MEIN DATE BHEJ RAHE HAIN JO FRONTEND DIRECT READ KAREGA
+            raise HTTPException(
+                status_code=400, 
+                detail=f"activate_date:{start_date_str}"
+            )
+            
+    # Check 2: Campaign Expiry Date Validation
+    expiry_date_str = target_campaign.get("expiry_date")
+    if expiry_date_str:
+        campaign_expiry = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+        if current_date > campaign_expiry:
+            raise HTTPException(status_code=400, detail="This voucher coupon batch has already expired!")
+            
+    # Check 3: Cashback Double-Redeem Protection Block
+    if target_qr.get("is_redeemed"):
+        raise HTTPException(status_code=400, detail="This scratch card QR code has already been claimed.")
+        
+    # Valid return mapping structure (Agar sab sahi hai toh custom data)
+    return {
+        "status": "success",
+        "is_redeemed": target_qr.get("is_redeemed"),
+        "amount": target_qr.get("assigned_amount")
+    }
+
+@app.get("/api/v1/generate-print-qr")
+def generate_print_ready_sticker(qr_id: str, company_name: Optional[str] = "MARUTHI"):
+    canvas_w, canvas_h = 600, 266
+    canvas = Image.new("RGB", (canvas_w, canvas_h), "white")
+    canvas_draw = ImageDraw.Draw(canvas)
+    
+    canvas_draw.rectangle([(410, 0), (600, canvas_h)], fill="#0f172a")
+    
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=5, border=1)
+    target_scan_url = f"https://qr-reward-system-gilt.vercel.app/claim/{qr_id}"
+    qr.add_data(target_scan_url)
+    qr.make(fit=True)
+    
+    qr_img = qr.make_image(fill_color="#0f172a", back_color="white").convert("RGB").resize((190, 190))
+    canvas.paste(qr_img, (410, 38)) 
+    
+    logo_filename = "logo.png"
+    if not os.path.exists(logo_filename) and os.path.exists("logo.png.png"):
+        logo_filename = "logo.png.png"
+        
+    logo_loaded = False
+    if os.path.exists(logo_filename):
+        try:
+            raw_img = Image.open(logo_filename)
+            if raw_img.mode in ('RGBA', 'LA') or (raw_img.mode == 'P' and 'transparency' in raw_img.info):
+                blended = Image.new("RGB", raw_img.size, (255, 255, 255))
+                blended.paste(raw_img, mask=raw_img.convert('RGBA').split()[3])
+                logo_asset = blended
+            else:
+                logo_asset = raw_img.convert("RGB")
+            
+            logo_asset = logo_asset.resize((270, 70), Image.Resampling.LANCZOS)
+            canvas.paste(logo_asset, (20, 15))
+            logo_loaded = True
+            print(f"🔥 HD FILE LOAD LOGGED: {logo_filename}")
+        except Exception as e:
+            print(f"❌ PIL fallback exception handling: {str(e)}")
+
+    if not logo_loaded:
+        canvas_draw.text((20, 30), "MARUTHI ELECTRODES", fill="#0f172a")
+
+    canvas_draw.rectangle([(15, 95), (395, 155)], fill="#1d4ed8") 
+    canvas_draw.text((25, 102), "Scratch & Scan To Win", fill="white")
+    canvas_draw.text((25, 126), "Instant Cashback", fill="white")
+    
+    canvas_draw.rectangle([(295, 110), (375, 140)], fill="#1d4ed8")
+    canvas_draw.text((310, 115), "UPI", fill="white")
+    
+    canvas_draw.polygon([(355, 115), (365, 125), (355, 135)], fill="#ea580c")
+    canvas_draw.polygon([(365, 115), (375, 125), (365, 135)], fill="#16a34a")
+
+    canvas_draw.text((20, 172), "1. Scan QR.  2. Open Link.  3. Scratch & Claim.", fill="#475569")
+    canvas_draw.line([(15, 215), (395, 215)], fill="#e2e8f0", width=1)
+    
+    clean_uid_str = str(qr_id).upper().strip()
+    if len(clean_uid_str) > 28:
+        clean_uid_str = f"{clean_uid_str[:14]}...{clean_uid_str[-12:]}"
+        
+    canvas_draw.text((20, 228), "SECURE TRACKING S/N:", fill="#94a3b8")
+    canvas_draw.text((185, 228), clean_uid_str, fill="#0f172a")
+    
+    canvas_draw.rectangle([(0, 0), (599, 265)], outline="#cbd5e1", width=2)
+    
+    image_stream = io.BytesIO()
+    canvas.save(image_stream, format="PNG")
+    image_stream.seek(0)
+    
+    return Response(content=image_stream.getvalue(), media_type="image/png")

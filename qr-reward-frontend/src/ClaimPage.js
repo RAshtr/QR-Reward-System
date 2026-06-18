@@ -16,52 +16,20 @@ const ClaimPage = () => {
     const [confirmationResult, setConfirmationResult] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // 🔥 NEW: State metrics to capture campaign active locks
+    const [showLockPopup, setShowLockPopup] = useState(false);
+    const [campaignStartDate, setCampaignStartDate] = useState("");
+
     // Fallback assignment for backend API integration node
     const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000";
 
     // Hooks framework to initialize Google Invisible reCAPTCHA on component mount
-    useEffect(() => {
-        const recaptchaContainer = document.getElementById('recaptcha-invisible-box');
-        
-        // Prevent duplicate initializations on runtime engine instances
-        if (recaptchaContainer && !window.recaptchaVerifier) {
-            try {
-                window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-invisible-box', {
-                    'size': 'invisible',
-                    'callback': (response) => {
-                        console.log("reCAPTCHA validation token generated successfully");
-                    },
-                    'expired-callback': () => {
-                        console.log("reCAPTCHA validation handshake expired. Evicting cache.");
-                        if (window.recaptchaVerifier) {
-                            window.recaptchaVerifier.clear();
-                            window.recaptchaVerifier = null;
-                        }
-                    }
-                });
-            } catch (err) {
-                console.error("Critical error during reCAPTCHA verification binding:", err);
-            }
-        }
-
-        // Garbage collection cleanup phase during target component destruction
-        return () => {
-            if (window.recaptchaVerifier) {
-                try {
-                    window.recaptchaVerifier.clear();
-                    window.recaptchaVerifier = null;
-                } catch (e) {
-                    console.error("Memory deallocation failure on reCAPTCHA reference:", e);
-                }
-            }
-        };
-    }, []);
-
     // Lifecycle monitoring instance to execute validation checks against QR payloads
     useEffect(() => {
         const verifyQR = async () => {
             try {
                 const cleanId = String(qr_id).toLowerCase().trim();
+                // Exact URL hit to matching route
                 const response = await fetch(`${API_BASE}/claim/${cleanId}`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
@@ -70,6 +38,55 @@ const ClaimPage = () => {
                 const data = await response.json();
 
                 if (!response.ok) {
+                    // 🎯 Check if backend blocked it due to start date condition
+                    if (response.status === 400 && data.detail && data.detail.includes("activate_date")) {
+                        const extractedDate = data.detail.split(":")[1]; // Get YYYY-MM-DD
+                        setCampaignStartDate(extractedDate);
+                        setShowLockPopup(true);
+                        setStatus('active'); // Dynamic window view freeze constraint
+                        return;
+                    }
+                    throw new Error(data.detail || "Invalid or Expired Voucher Code");
+                }
+
+                // Agar check clear ho gaya, toh baki regular process chalne do
+                setQrData(data);
+                setStatus(data.is_redeemed ? 'redeemed' : 'active');
+
+            } catch (err) {
+                console.error("Voucher authentication validation error:", err);
+                alert("Backend Error: " + err.message);
+                setStatus('error');
+            }
+        };
+
+        if (qr_id) {
+            verifyQR();
+        }
+    }, [qr_id, API_BASE]);
+
+    // Lifecycle monitoring instance to execute validation checks against QR payloads
+    useEffect(() => {
+        const verifyQR = async () => {
+            try {
+                const cleanId = String(qr_id).toLowerCase().trim();
+                const response = await fetch(`${API_BASE}/api/v1/claim/${cleanId}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // 🎯 Catch high-res 400 validation error thrown from main.py start_date restriction
+                    if (response.status === 400 && data.detail.includes("activate")) {
+                        // Extract exact date string hidden inside error details parsing
+                        const dateMatch = data.detail.match(/\d{4}-\d{2}-\d{2}/);
+                        setCampaignStartDate(dateMatch ? dateMatch[0] : "Coming Soon");
+                        setShowLockPopup(true);
+                        setStatus('active'); // Keep container active but locked underneath
+                        return;
+                    }
                     throw new Error(data.detail || "Invalid or Expired Voucher Code");
                 }
 
@@ -97,10 +114,8 @@ const ClaimPage = () => {
 
         setLoading(true);
         try {
-            // Append international telecommunication gateway prefix strings
             const formattedMobile = `+91${formData.mobile.trim()}`;
             
-            // Re-verify underlying DOM anchor registration before firing network request
             if (!window.recaptchaVerifier) {
                 window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-invisible-box', {
                     'size': 'invisible'
@@ -108,8 +123,6 @@ const ClaimPage = () => {
             }
             
             const appVerifier = window.recaptchaVerifier;
-            
-            // Dispatch async payload token resolution to the carrier gateway
             const confirmation = await signInWithPhoneNumber(auth, formattedMobile, appVerifier);
             
             setConfirmationResult(confirmation);
@@ -119,7 +132,6 @@ const ClaimPage = () => {
             console.error("Carrier communication error on Firebase module:", error);
             alert("SMS Engine Failed: " + error.message);
             
-            // Standard reset loop implementation to recovery from transport layer blocks
             if (window.recaptchaVerifier) {
                 try {
                     window.recaptchaVerifier.clear();
@@ -146,16 +158,11 @@ const ClaimPage = () => {
 
         setLoading(true);
         try {
-            // Submit structural match matrix against target carrier authentication layers
             const result = await confirmationResult.confirm(formData.otp);
             const user = result.user;
-            
-            // Fetch validation payload string tokens from server context
             const idToken = await user.getIdToken();
-
             const cleanId = String(qr_id).toLowerCase().trim();
             
-            // Forward authorization credentials to settlement infrastructure nodes
             const redeemRes = await fetch(`${API_BASE}/redeem/${cleanId}?mobile=${formData.mobile}&upi=${formData.upi}`, {
                 method: 'POST',
                 headers: { 
@@ -179,10 +186,8 @@ const ClaimPage = () => {
         }
     };
 
-    // UI Layout loading state handler execution block
     if (status === 'loading') return <div style={loaderStyle}>⚡ Verifying Secure Voucher Node...</div>;
     
-    // Error state recovery screen fallback rendering context
     if (status === 'error')
         return (
             <div style={errorContainerStyle}>
@@ -194,11 +199,28 @@ const ClaimPage = () => {
 
     return (
         <div style={containerStyle}>
-            {/* Structural injection token reference anchor for rendering invisible capture windows */}
             <div id="recaptcha-invisible-box" style={{ position: 'absolute', top: 0, left: 0 }}></div>
 
+            {/* 🔥 NEW LAYER OVERLAY POPUP: CAMPAIGN LOCKED RENDER PANEL 🔥 */}
+            {showLockPopup && (
+                <div style={overlayStyle}>
+                    <div style={popupCardStyle}>
+                        <div style={iconCircle}>⏳</div>
+                        <h2 style={popupTitleStyle}>Campaign Not Started</h2>
+                        <p style={popupSubtitleStyle}>
+                            This promotional reward scheme hasn't started yet. The coupon vouchers will automatically activate on:
+                        </p>
+                        <div style={dateBadge}>
+                            📅 {campaignStartDate ? new Date(campaignStartDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Coming Soon'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>
+                            MARUTHI ELECTRODES SECURITY ACCESS
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={cardStyle}>
-                {/* Active verification lifecycle module template */}
                 {status === 'active' && (
                     <div>
                         <div style={badgeStyle}>🎉 PHYSICAL VOUCHER UNLOCKED</div>
@@ -221,7 +243,6 @@ const ClaimPage = () => {
                                 onChange={e => setFormData({...formData, mobile: e.target.value})} 
                             />
                             
-                            {/* Toggle components state depending on transaction verification parameters */}
                             {!otpSent ? (
                                 <button onClick={handleSendOtp} disabled={loading} style={buttonStyle}>
                                     {loading ? "Requesting SMS..." : "Get Verification OTP"}
@@ -257,7 +278,6 @@ const ClaimPage = () => {
                     </div>
                 )}
                 
-                {/* Transaction settled success screen render confirmation component */}
                 {status === 'redeemed' && (
                     <div style={{ padding: '20px 0' }}>
                         <h1 style={{ fontSize: '64px', margin: '0 0 20px 0' }}>🎉</h1>
@@ -289,5 +309,13 @@ const inputStyle = { padding: '12px 14px', borderRadius: '8px', border: '1px sol
 const buttonStyle = { backgroundColor: '#38bdf8', color: '#020617', padding: '14px', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '14px', marginTop: '15px', letterSpacing: '0.5px', boxShadow: '0 4px 6px -1px rgba(56, 189, 248, 0.2)' };
 const loaderStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontWeight: 'bold', backgroundColor: '#020617', color: '#38bdf8', fontSize: '16px' };
 const errorContainerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontWeight: 'bold', backgroundColor: '#020617', color: '#f43f5e', fontSize: '16px', padding: '20px', textAlign: 'center' };
+
+// 🔥 NEW INLINE STYLES FOR OVERLAY MOCK CARD
+const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(2, 6, 23, 0.92)', backdropFilter: 'blur(10px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' };
+const popupCardStyle = { backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px 24px', maxWidth: '370px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' };
+const iconCircle = { width: '80px', height: '80px', backgroundColor: 'rgba(56, 189, 248, 0.08)', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 24px auto', border: '1px solid rgba(56, 189, 248, 0.15)', fontSize: '36px' };
+const popupTitleStyle = { color: '#ffffff', fontSize: '22px', fontWeight: '900', margin: '0 0 12px 0', letterSpacing: '-0.5px' };
+const popupSubtitleStyle = { color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', margin: '0 0 28px 0' };
+const dateBadge = { display: 'inline-block', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '10px 20px', borderRadius: '30px', fontWeight: '800', fontSize: '14px', letterSpacing: '0.5px', marginBottom: '28px' };
 
 export default ClaimPage;

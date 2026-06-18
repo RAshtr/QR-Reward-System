@@ -1,0 +1,656 @@
+{
+    "campaigns": [
+        {
+            "id": 1,
+            "series_name": "gtgt",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 2,
+            "expiry_date": "2026-06-16",
+            "qr_list": [
+                {
+                    "qr_code_id": "cea73175-3a2d-47b4-9b7b-eb88f60f7e70",
+                    "assigned_amount": 7.58,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                },
+                {
+                    "qr_code_id": "ebc1bf54-514d-413e-9054-0f2e8dc2b2fd",
+                    "assigned_amount": 8.88,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "series_name": "ikik",
+            "min_amount": 6.0,
+            "max_amount": 10.0,
+            "quantity": 2,
+            "expiry_date": "2026-06-16",
+            "qr_list": [
+                {
+                    "qr_code_id": "105df689-7c9c-4dcf-9e7c-6635f8c52fe7",
+                    "assigned_amount": 7.99,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                },
+                {
+                    "qr_code_id": "b4520f0d-c1f1-4cbf-a21c-04c95cce17a8",
+                    "assigned_amount": 9.39,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "series_name": "ngng",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-16",
+            "qr_list": [
+                {
+                    "qr_code_id": "e7dd544a-26a8-4761-a2ac-e5cf2179a845",
+                    "assigned_amount": 6.04,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "series_name": "lolo",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-07-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "a9f26dee-2637-411c-a61e-4f126544960e",
+                    "assigned_amount": 8.26,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 5,
+            "series_name": "hjhjh",
+            "min_amount": 5.0,
+            "max_amount": 8.0,
+            "quantity": -1,
+            "expiry_date": "2026-06-26",
+            "qr_list": []
+        },
+        {
+            "id": 6,
+            "series_name": "asas",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 0,
+            "expiry_date": "2026-06-17",
+            "qr_list": []
+        },
+        {
+            "id": 7,
+            "series_name": "tyty",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "147b855f-25d4-4fa3-9488-9bd35e5f3848",
+                    "assigned_amount": 5.81,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 8,
+            "series_name": "uuyuuy",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-23",
+            "qr_list": [
+                {
+                    "qr_code_id": "69826ce6-6d06-4b4a-b256-24493a95dfe6",
+                    "assigned_amount": 6.18,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 9,
+            "series_name": "ghghghghg",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-24",
+            "qr_list": [
+                {
+                    "qr_code_id": "7071e094-6253-41dd-bc69-6ae563402089",
+                    "assigned_amount": 6.19,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 10,
+            "series_name": "bybyby",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": -2,
+            "expiry_date": "2026-06-19",
+            "qr_list": []
+        },
+        {
+            "id": 11,
+            "series_name": "jkjkjkj",
+            "min_amount": 5.0,
+            "max_amount": 8.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "3db8d312-6d97-4cd7-9d24-0c252f46737c",
+                    "assigned_amount": 6.14,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 12,
+            "series_name": "tutututu",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "9fe8b818-2593-42a4-a7e9-846a344cb265",
+                    "assigned_amount": 8.84,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 13,
+            "series_name": "Testingb",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "d8a783fe-0dfe-4e1f-babc-fc20a6b33439",
+                    "assigned_amount": 6.91,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 14,
+            "series_name": "hgthhhg",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": -1,
+            "expiry_date": "2026-06-19",
+            "qr_list": []
+        },
+        {
+            "id": 15,
+            "series_name": "jujujuj",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 0,
+            "expiry_date": "2026-06-23",
+            "qr_list": []
+        },
+        {
+            "id": 16,
+            "series_name": "uiuiui",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "b9eda715-e313-4490-92d3-483e5eb0de25",
+                    "assigned_amount": 6.59,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 17,
+            "series_name": "aaeae",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-22",
+            "qr_list": [
+                {
+                    "qr_code_id": "a3d8cdaf-9014-4c98-9be6-f78c4401b89a",
+                    "assigned_amount": 7.31,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 18,
+            "series_name": "aqaqaq",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 0,
+            "expiry_date": "2026-06-30",
+            "qr_list": []
+        },
+        {
+            "id": 19,
+            "series_name": "rtrttr",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-07-21",
+            "qr_list": [
+                {
+                    "qr_code_id": "79dd66ee-535d-4f08-888c-54c8bc248d5f",
+                    "assigned_amount": 8.49,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 20,
+            "series_name": "realqr",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-23",
+            "qr_list": [
+                {
+                    "qr_code_id": "60098233-3dff-4fa0-b210-7d9d78ed3b95",
+                    "assigned_amount": 9.66,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 21,
+            "series_name": "tytyty",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "aaf8cb65-1c3e-4b88-8a6c-9254e9820536",
+                    "assigned_amount": 8.71,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 22,
+            "series_name": "kjkjkjj",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "eaa716a6-e8c8-4a58-8398-76b3305114ce",
+                    "assigned_amount": 6.71,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 23,
+            "series_name": "rtrtrt",
+            "min_amount": 5.0,
+            "max_amount": 9.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "a36ca5b1-2c48-4f7e-824a-b668cf950bd3",
+                    "assigned_amount": 6.1,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 24,
+            "series_name": "rurur",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-21",
+            "qr_list": [
+                {
+                    "qr_code_id": "dd4a6f06-3962-49c5-b3f3-5f61d49b4cc6",
+                    "assigned_amount": 6.85,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 25,
+            "series_name": "dfdfd",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "a7cbe717-b8af-412d-8da5-a8a81cc2ca24",
+                    "assigned_amount": 6.41,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 26,
+            "series_name": "bgbgbg",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "0d5ab8cc-0fcc-4f99-b481-b11b626088c2",
+                    "assigned_amount": 5.18,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 27,
+            "series_name": "sdsd",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "6c5bf69f-b3d5-4597-a5d8-07ed3e4a66f7",
+                    "assigned_amount": 5.19,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 28,
+            "series_name": "swswsw",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-25",
+            "qr_list": [
+                {
+                    "qr_code_id": "32074b0e-3f10-4e57-b08b-4aaf6b2e9acc",
+                    "assigned_amount": 5.96,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 29,
+            "series_name": "nrbatch",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "bc9f8fa0-2d9b-4640-9c5b-41f8e52ef531",
+                    "assigned_amount": 9.57,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 30,
+            "series_name": "ntbatch",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "3c8797ef-3fc1-4961-8804-52a745f75f41",
+                    "assigned_amount": 5.82,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 31,
+            "series_name": "yhth",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "97888219-81e2-44a3-901c-0ec2ceb54f50",
+                    "assigned_amount": 5.74,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 32,
+            "series_name": "jkl",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "71622bfc-84a4-4dba-8d6e-438c58a8fc9f",
+                    "assigned_amount": 6.43,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 33,
+            "series_name": "lkjhg",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-19",
+            "qr_list": [
+                {
+                    "qr_code_id": "19949fd7-dfc1-46ce-80ce-689c2e55d78b",
+                    "assigned_amount": 7.47,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 34,
+            "series_name": "qawe",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-20",
+            "qr_list": [
+                {
+                    "qr_code_id": "3004dd56-afa0-4f28-af78-bc2533bf5e10",
+                    "assigned_amount": 9.21,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 35,
+            "series_name": "oilio",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "expiry_date": "2026-06-18",
+            "qr_list": [
+                {
+                    "qr_code_id": "606db928-c8e6-47a5-9c22-0da512f0d28f",
+                    "assigned_amount": 5.33,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 36,
+            "series_name": "tyty",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-19",
+            "expiry_date": "2026-06-22",
+            "qr_list": [
+                {
+                    "qr_code_id": "d776fb79-618d-428d-94c9-160b02def4ee",
+                    "assigned_amount": 9.39,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 37,
+            "series_name": "rttr",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-20",
+            "expiry_date": "2026-06-28",
+            "qr_list": [
+                {
+                    "qr_code_id": "f2c356b6-d25d-4a78-8c02-38d7e5902827",
+                    "assigned_amount": 7.59,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 38,
+            "series_name": "jhg",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-19",
+            "expiry_date": "2026-06-26",
+            "qr_list": [
+                {
+                    "qr_code_id": "2c613169-0c76-4be3-99c9-5a417fa78b66",
+                    "assigned_amount": 9.11,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 39,
+            "series_name": "teraset",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-20",
+            "expiry_date": "2026-06-22",
+            "qr_list": [
+                {
+                    "qr_code_id": "67e6f789-c282-4f98-bce7-890257d57287",
+                    "assigned_amount": 6.1,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 40,
+            "series_name": "wer",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-19",
+            "expiry_date": "2026-06-25",
+            "qr_list": [
+                {
+                    "qr_code_id": "b3570ba3-209d-4893-bcc2-71db3919fdd3",
+                    "assigned_amount": 6.75,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        }
+    ],
+    "total_payout": 0
+}
