@@ -89,16 +89,14 @@ def create_campaign(campaign: CampaignCreate):
     save_db(db)
     return campaign_dict
 
-# 🔥 NEW ADDED: CUSTOMER SCAN CLAIM VALIDATION API ROUTER ENDPOINT
-# Jab customer QR scan karega, tab yeh route call hoga aur start_date enforce karega
-# 🔥 ROUTE PATH EXACT MATCH KAR DIYA (Hata diya /api/v1)
+# 🎯 SINGLE CLEAN ROUTE WITH ALL VALIDATIONS INTEGRATED
 @app.get("/claim/{qr_id}")
-def validate_and_claim_qr(qr_id: str):
+def verify_customer_scan(qr_id: str):
     db = load_db()
     target_campaign = None
     target_qr = None
     
-    # Database parsing logic loop lookup
+    # Loop chala kar QR code dhoondho
     for campaign in db.get("campaigns", []):
         for qr in campaign.get("qr_list", []):
             if str(qr.get("qr_code_id")).strip().lower() == str(qr_id).strip().lower():
@@ -109,37 +107,40 @@ def validate_and_claim_qr(qr_id: str):
             break
             
     if not target_campaign or not target_qr:
-        raise HTTPException(status_code=404, detail="Invalid QR Code Token")
+        raise HTTPException(status_code=404, detail="QR Code Not Found")
         
-    # Check 1: Live Verification for Campaign Start Date (Active From restriction)
     current_date = datetime.now().date()
-    start_date_str = target_campaign.get("start_date")
     
+    # 1. 🔥 START DATE VALIDATION (Popup Trigger Check)
+    start_date_str = target_campaign.get("start_date")
     if start_date_str:
         campaign_start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         if current_date < campaign_start:
-            # 🎯 YAHAN HUM DETAILS MEIN DATE BHEJ RAHE HAIN JO FRONTEND DIRECT READ KAREGA
-            raise HTTPException(
-                status_code=400, 
-                detail=f"activate_date:{start_date_str}"
-            )
+            return {
+                "status": "not_started", 
+                "start_date": start_date_str
+            }
             
-    # Check 2: Campaign Expiry Date Validation
+    # 2. 🔥 EXPIRY DATE VALIDATION
     expiry_date_str = target_campaign.get("expiry_date")
     if expiry_date_str:
         campaign_expiry = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
         if current_date > campaign_expiry:
             raise HTTPException(status_code=400, detail="This voucher coupon batch has already expired!")
             
-    # Check 3: Cashback Double-Redeem Protection Block
+    # 3. 🔥 ALREADY REDEEMED PROTECTION CHECK
     if target_qr.get("is_redeemed"):
-        raise HTTPException(status_code=400, detail="This scratch card QR code has already been claimed.")
+        return {
+            "status": "success",
+            "is_redeemed": True,
+            "assigned_amount": target_qr.get("assigned_amount")
+        }
         
-    # Valid return mapping structure (Agar sab sahi hai toh custom data)
+    # Agar saari conditions pass ho gayi (Yaani date aaj ki hai aur valid hai)
     return {
         "status": "success",
-        "is_redeemed": target_qr.get("is_redeemed"),
-        "amount": target_qr.get("assigned_amount")
+        "is_redeemed": False,
+        "assigned_amount": target_qr.get("assigned_amount")
     }
 
 @app.get("/api/v1/generate-print-qr")
