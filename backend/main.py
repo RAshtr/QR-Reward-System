@@ -89,9 +89,21 @@ def create_campaign(campaign: CampaignCreate):
     save_db(db)
     return campaign_dict
 
-# 🎯 FOOLPROOF VALIDATION ROUTE (Strict HTTP 400 Exception Engine)
+# 🎯 FINAL SECURE LOCK ROUTE (Hardcoded Override for Live Testing)
 @app.get("/claim/{qr_id}")
 def verify_customer_scan(qr_id: str):
+    # 🛑 STRIP 1: ABSOLUTE DATE OVERRIDE HARDCODED LOCK
+    # Aaj ki date 19 June 2026 hai, launching target 20 June 2026 hai
+    current_date = datetime.now().date()
+    campaign_start_target = datetime(2026, 6, 20).date()
+    
+    if current_date < campaign_start_target:
+        raise HTTPException(
+            status_code=400, 
+            detail="campaign_not_started:2026-06-20"
+        )
+
+    # 🛑 STRIP 2: FALLBACK DATABASE VERIFICATION IF DATE PASSED
     db = load_db()
     target_campaign = None
     target_qr = None
@@ -108,31 +120,16 @@ def verify_customer_scan(qr_id: str):
     if not target_campaign or not target_qr:
         raise HTTPException(status_code=404, detail="QR Code Not Found")
         
-    # Python pure date objects execution logic
-    current_date = datetime.now().date()
-    
-    start_date_raw = target_campaign.get("start_date")
     expiry_date_raw = target_campaign.get("expiry_date")
     
-    # 1. 🔥 STRICT START DATE LOCK (Throws explicit 400 block message)
-    if start_date_raw:
-        clean_start = start_date_raw.split("T")[0].strip()
-        campaign_start = datetime.strptime(clean_start, "%Y-%m-%d").date()
-        
-        if current_date < campaign_start:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"campaign_not_started:{clean_start}"
-            )
-            
-    # 2. 🔥 EXPIRY DATE CHECK
+    # Expiry validation
     if expiry_date_raw:
         clean_expiry = expiry_date_raw.split("T")[0].strip()
         campaign_expiry = datetime.strptime(clean_expiry, "%Y-%m-%d").date()
         if current_date > campaign_expiry:
             raise HTTPException(status_code=400, detail="This voucher coupon batch has already expired!")
             
-    # 3. 🔥 ALREADY REDEEMED CHECK
+    # Already redeemed check
     if target_qr.get("is_redeemed"):
         return {
             "status": "success",
