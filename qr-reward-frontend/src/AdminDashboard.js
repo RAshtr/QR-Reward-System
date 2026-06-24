@@ -61,11 +61,11 @@ const AdminDashboard = ({ onLogout }) => {
     try {
       const submitPayload = {
         series_name: String(formData.series_name || "BATCH").trim(),
-        min_amount: formData.min_amount ? Number(formData.min_amount) : 1,
-        max_amount: formData.max_amount ? Number(formData.max_amount) : 5,
-        quantity: formData.quantity ? Number(formData.quantity) : 1,
-        start_date: String(formData.start_date || "2026-06-18"), 
-        expiry_date: String(formData.expiry_date || "2026-12-31"),
+        min_amount: Number(formData.min_amount),
+        max_amount: Number(formData.max_amount),
+        quantity: Number(formData.quantity),
+        start_date: String(formData.start_date), 
+        expiry_date: String(formData.expiry_date),
         is_bumper: Boolean(formData.is_bumper) 
       };
 
@@ -93,11 +93,11 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
-  // 🎯 FIX: Google Open QR API ke cross-origin constraints ko fix karne ka foolproof browser tareeka
   const loadImageAsBase64 = (url) => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'Anonymous'; 
+      img.src = url + "?v=" + new Date().getTime();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
@@ -107,7 +107,6 @@ const AdminDashboard = ({ onLogout }) => {
         resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = (e) => reject(new Error("CORS image conversion pipeline crashed"));
-      img.src = url;
     });
   };
 
@@ -119,28 +118,43 @@ const AdminDashboard = ({ onLogout }) => {
     }
 
     const doc = new jsPDF('p', 'mm', 'a4');
-    
-    const cardWidth = 45; 
-    const cardHeight = 20; 
-    const startX = 14; 
-    const startY = 18; 
-    
-    const gapX = 4;
-    const gapY = 3;
+    const cardWidth = 45;     
+    const cardHeight = 20;    
+    const startX = 10;        
+    const startY = 15;        
+    const gapX = 5;           
+    const gapY = 4;           
     const maxColumns = 4;
-    const maxRows = 10; 
+    const maxRows = 11;       
 
     try {
-      alert("Generating high-quality sticker sheet. Download will start automatically...");
+      // 🎯 FIX: Purana loading alert yahan se poori tarah hata diya hai taaki do baar pop-up na aaye
+
+      const loadLogoAsync = () => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = "/logo.png?v=" + new Date().getTime();
+          img.onload = () => resolve(img);
+          img.onerror = () => {
+            console.log("logo.png missing from public folder root, running safe text fallback.");
+            resolve(null);
+          };
+        });
+      };
+
+      const preLoadedLogo = await loadLogoAsync();
       
       for (let i = 0; i < campaign.qr_list.length; i++) {
         const qr = campaign.qr_list[i];
-        const fullUuidStr = String(qr.qr_code_id || qr.id).toLowerCase().trim();
         
-        // Target path where scan routes client destination
-        const targetScanUrl = `https://qr-reward-system-gilt.vercel.app/claim/${fullUuidStr}`;
+        let rawIdStr = qr.qr_code_id || qr.id || "";
+        let clean32BitUuid = String(rawIdStr).replace(/-/g, "").toUpperCase().trim();
         
-        // Cloud engine rendering architecture point bypass configuration
+        if (!clean32BitUuid || clean32BitUuid.length < 25) {
+          clean32BitUuid = (clean32BitUuid + "00000000000000000000000000000000").substring(0, 32);
+        }
+        
+        const targetScanUrl = `https://qr-reward-system-gilt.vercel.app/claim/${clean32BitUuid.toLowerCase()}`;
         const fastQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(targetScanUrl)}`;
         
         const base64ImageString = await loadImageAsBase64(fastQrUrl);
@@ -155,31 +169,63 @@ const AdminDashboard = ({ onLogout }) => {
         const x = startX + col * (cardWidth + gapX);
         const y = startY + row * (cardHeight + gapY);
 
-        // Layout border logic
-        doc.setDrawColor(203, 213, 225);
+        doc.setDrawColor(186, 27, 27); 
+        doc.setLineWidth(0.2);
         doc.rect(x, y, cardWidth, cardHeight);
         
-        doc.addImage(base64ImageString, 'PNG', x + 25, y + 1, 18, 18);
+        let contentStartY = y + 8.2; 
         
-        doc.setFontSize(7);
+        if (preLoadedLogo) {
+          doc.addImage(preLoadedLogo, 'PNG', x + 1.5, y + 1.2, 23, 5.2);
+          contentStartY = y + 8.2; 
+        } else {
+          doc.setFontSize(5.5);
+          doc.setFont("Helvetica", "bold");
+          doc.setTextColor(186, 27, 27); 
+          doc.text("MARUTHI ELECTRODES", x + 1.5, y + 4.0);
+          
+          doc.setFontSize(3.5);
+          doc.setFont("Helvetica", "normal");
+          doc.setTextColor(100, 116, 139);
+          doc.text("WELDING ELECTRODES CO.", x + 1.5, y + 5.8);
+          contentStartY = y + 8.8; 
+        }
+
+        doc.setFontSize(3.8);
         doc.setFont("Helvetica", "bold");
         doc.setTextColor(15, 23, 42);
-        doc.text("MARUTHI", x + 2, y + 4);
-        
-        doc.setFontSize(5);
-        doc.setTextColor(29, 78, 216);
-        doc.text("Scratch & Scan to Win", x + 2, y + 8);
-        doc.text("Instant Payout", x + 2, y + 11);
-        
+        doc.text("1. Scan QR Code", x + 1.5, contentStartY);
+        doc.text("2. Open Provided Link", x + 1.5, contentStartY + 2.0);
+        doc.text("3. Claim Your Cashback", x + 1.5, contentStartY + 4.0);
+
+        doc.setFillColor(29, 78, 216); 
+        doc.rect(x + 1.5, y + 14.8, 23, 2.5, 'F');
         doc.setFontSize(4);
-        doc.setTextColor(148, 163, 184);
-        doc.text(`S/N: ${fullUuidStr.substring(0, 14).toUpperCase()}...`, x + 2, y + 17);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        doc.text("INSTANT UPI PAYOUT", x + 2.2, y + 16.5); 
+        
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(x + 27, y + 1.5, 16.5, 14.5);
+        doc.addImage(base64ImageString, 'PNG', x + 27.2, y + 1.7, 16.1, 14.1);
+        
+        doc.setFontSize(3.1);
+        doc.setFont("Helvetica", "normal");
+        doc.setTextColor(100, 116, 139);
+        
+        const uuidPart1 = clean32BitUuid.substring(0, 16);
+        const uuidPart2 = clean32BitUuid.substring(16, 32);
+        doc.text(`S/N: ${uuidPart1}`, x + 26.8, y + 17.5);
+        doc.text(uuidPart2, x + 26.8, y + 19.0);
       }
       
-      doc.save(`${campaign.series_name}_Official_Maruthi_Stickers.pdf`);
+      doc.save(`${campaign.series_name}_Premium_Stickers.pdf`);
+      
+      // 🎯 ONLY THIS ALERT WILL POP UP NOW
+      alert(`Success! ${campaign.series_name} PDF has been downloaded successfully.`);
     } catch (err) { 
       console.error(err);
-      alert("Failed to render PDF engine labels locally: " + err.message); 
+      alert("Layout engine pipeline failed: " + err.message); 
     }
   };
 
@@ -259,24 +305,27 @@ const AdminDashboard = ({ onLogout }) => {
           <form onSubmit={handleSubmit} style={formStyle}>
             <label style={fieldLabel}>Campaign Series Name</label>
             <input style={inputField} type="text" value={formData.series_name || ''} onChange={e => setFormData({ ...formData, series_name: e.target.value })} required />
+            
             <div style={{ display: 'flex', gap: '16px' }}>
               <div style={{flex: 1}}>
                 <label style={fieldLabel}>Min Amount (₹)</label>
-                <input style={inputField} type="number" value={formData.min_amount || ''} onChange={e => setFormData({ ...formData, min_amount: e.target.value })} required />
+                <input style={inputField} type="number" step="0.01" placeholder="Type min amount" value={formData.min_amount || ''} onChange={e => setFormData({ ...formData, min_amount: e.target.value })} required />
               </div>
               <div style={{flex: 1}}>
                 <label style={fieldLabel}>Max Amount (₹)</label>
-                <input style={inputField} type="number" value={formData.max_amount || ''} onChange={e => setFormData({ ...formData, max_amount: e.target.value })} required />
+                <input style={inputField} type="number" step="0.01" placeholder="Type max amount" value={formData.max_amount || ''} onChange={e => setFormData({ ...formData, max_amount: e.target.value })} required />
               </div>
             </div>
-            <label style={fieldLabel}>Quantity</label>
-            <input style={inputField} type="number" value={formData.quantity || ''} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
             
+            <label style={fieldLabel}>Quantity</label>
+            <input style={inputField} type="number" placeholder="Type total labels count" value={formData.quantity || ''} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+            
+            {/* 🎯 FIXED: FormData binding corrected & colorScheme added to force display calendar click engine */}
             <label style={fieldLabel}>Start Date (Active From)</label>
-            <input style={inputField} type="date" value={formData.start_date || ''} onChange={e => setFormData({ ...formData, start_date: e.target.value })} required />
+            <input style={{...inputField, colorScheme: 'dark'}} type="date" value={formData.start_date || ''} onChange={e => setFormData({ ...formData, start_date: e.target.value })} required />
 
             <label style={fieldLabel}>Expiry Date</label>
-            <input style={inputField} type="date" value={formData.expiry_date || ''} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} required />
+            <input style={{...inputField, colorScheme: 'dark'}} type="date" value={formData.expiry_date || ''} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} required />
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px', marginBottom: '5px', padding: '10px 0' }}>
               <input 

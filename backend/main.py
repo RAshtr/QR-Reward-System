@@ -119,6 +119,7 @@ def verify_customer_scan(qr_id: str):
     target_campaign = None
     target_qr = None
     
+    # 🎯 1. QR Code search matrix match loop
     for campaign in db.get("campaigns", []):
         for qr in campaign.get("qr_list", []):
             if str(qr.get("qr_code_id")).strip().lower() == str(qr_id).strip().lower():
@@ -131,6 +132,7 @@ def verify_customer_scan(qr_id: str):
     if not target_campaign or not target_qr:
         raise HTTPException(status_code=404, detail="QR Code Not Found")
         
+    # 🎯 2. STRICT DATE VALIDATION (STOPS SCANS BEFORE START DATE)
     current_date = datetime.now().date()
     start_date_raw = target_campaign.get("start_date")
     expiry_date_raw = target_campaign.get("expiry_date")
@@ -138,10 +140,16 @@ def verify_customer_scan(qr_id: str):
     if start_date_raw:
         try:
             campaign_start = parse_flexible_date(start_date_raw)
+            # 🚨 STOPS SCAN PROMPT: Agar aaj ki date start_date se pehle ki hai toh direct strict lock lagao
             if current_date < campaign_start:
-                raise HTTPException(status_code=400, detail=f"campaign_not_started:{campaign_start}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"This campaign will activate on {campaign_start.strftime('%d-%b-%Y')}. Scans are locked until then!"
+                )
+        except HTTPException as he:
+            raise he
         except Exception as e:
-            print(f"Date check pass override bypass: {str(e)}")
+            print(f"Date check strict parser error: {str(e)}")
             
     if expiry_date_raw:
         try:
@@ -149,8 +157,9 @@ def verify_customer_scan(qr_id: str):
             if current_date > campaign_expiry:
                 raise HTTPException(status_code=400, detail="This voucher coupon batch has already expired!")
         except Exception as e:
-            print(f"Expiry validation bypass: {str(e)}")
+            print(f"Expiry validation crash bypass: {str(e)}")
             
+    # If already redeemed, return direct status
     if target_qr.get("is_redeemed"):
         return {
             "status": "success",
@@ -164,7 +173,6 @@ def verify_customer_scan(qr_id: str):
         "assigned_amount": target_qr.get("assigned_amount"),
         "is_bumper_campaign": target_campaign.get("is_bumper", False)
     }
-
 # 🎯 Customer Unique Identity Bumper Progress Tracker
 @app.post("/customer/check-progress")
 def check_customer_loyalty(req: CustomerTrackRequest):
