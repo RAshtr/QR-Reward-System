@@ -668,6 +668,42 @@
                     "redeemed_at": null
                 }
             ]
+        },
+        {
+            "id": 42,
+            "series_name": "nhjh",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-20",
+            "expiry_date": "2026-06-25",
+            "qr_list": [
+                {
+                    "qr_code_id": "5548a6b4-d6cb-43d7-9bba-f773c945efd9",
+                    "assigned_amount": 6.21,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
+        },
+        {
+            "id": 43,
+            "series_name": "oju",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-20",
+            "expiry_date": "2026-06-24",
+            "qr_list": [
+                {
+                    "qr_code_id": "4f6ee42a-cd3f-48b2-bfbe-27f345dc5c15",
+                    "assigned_amount": 5.85,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
         }
     ],
     "total_payout": 0
