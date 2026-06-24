@@ -951,6 +951,25 @@
                     "redeemed_at": null
                 }
             ]
+        },
+        {
+            "id": 57,
+            "series_name": "asew",
+            "min_amount": 5.0,
+            "max_amount": 10.0,
+            "quantity": 1,
+            "start_date": "2026-06-26",
+            "expiry_date": "2026-06-27",
+            "is_bumper": true,
+            "qr_list": [
+                {
+                    "qr_code_id": "94a7ffb7-1b2b-4af2-b000-7eae7e4f05ca",
+                    "assigned_amount": 9.59,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
         }
     ],
     "total_payout": 0,

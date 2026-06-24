@@ -177,9 +177,19 @@ def verify_customer_scan(qr_id: str):
 @app.post("/customer/check-progress")
 def check_customer_loyalty(req: CustomerTrackRequest):
     db = load_db()
-    mobile = req.mobile.strip()
-    name = req.name.strip()
     
+    # Clean data spaces strictly to prevent encoding gaps
+    mobile = str(req.mobile).strip()
+    name = str(req.name).strip()
+    qr_id = str(req.qr_id).strip().lower()
+    
+    if not mobile:
+        raise HTTPException(status_code=400, detail="Mobile number configuration is completely missing!")
+
+    # 🎯 FIX: Core Initialize safe customer directory dict mapping if not exists
+    if "customers" not in db:
+        db["customers"] = {}
+        
     if mobile not in db["customers"]:
         db["customers"][mobile] = {
             "name": name,
@@ -188,16 +198,22 @@ def check_customer_loyalty(req: CustomerTrackRequest):
         }
         
     customer_data = db["customers"][mobile]
-    customer_data["name"] = name
+    customer_data["name"] = name  # Sync/update latest input name safely
     
-    if req.qr_id not in customer_data["history"]:
-        customer_data["total_scans"] += 1
-        customer_data["history"].append(req.qr_id)
+    # Ensure history tracker node arrays exist inside database structure
+    if "history" not in customer_data:
+        customer_data["history"] = []
+
+    # 🎯 FIX: Avoid double tracking count if user submits the same QR token again
+    if qr_id not in customer_data["history"]:
+        customer_data["total_scans"] = customer_data.get("total_scans", 0) + 1
+        customer_data["history"].append(qr_id)
         
     scans_done = customer_data["total_scans"]
     is_bumper_hit = False
     remaining = 64 - scans_done
     
+    # Bumper progression unlock reset threshold limit rules
     if scans_done >= 64:
         is_bumper_hit = True
         customer_data["total_scans"] = 0  
