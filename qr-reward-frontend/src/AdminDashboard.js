@@ -7,14 +7,15 @@ const AdminDashboard = ({ onLogout }) => {
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [loading, setLoading] = useState(true);
   
-  // 1. Form State me start_date field map kiya
+  // 1. 🎯 FIX: Form State me start_date ke sath is_bumper boolean property register ki
   const initialFormState = {
     series_name: '', 
     min_amount: '', 
     max_amount: '', 
     quantity: '', 
-    start_date: '',   // 👈 Added
-    expiry_date: ''
+    start_date: '',   
+    expiry_date: '',
+    is_bumper: false  // 👈 Added
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -48,7 +49,7 @@ const AdminDashboard = ({ onLogout }) => {
         setCampaignList([]);
         setSelectedCampaign("");
       }
-      setLoading(false);
+      loading && setLoading(false);
     } catch (error) {
       console.error("Fetch Error Matrix:", error);
       setLoading(false);
@@ -57,7 +58,7 @@ const AdminDashboard = ({ onLogout }) => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 2. Submit payload data me start_date binding handle ki
+  // 2. 🎯 FIX: Submit payload data me is_bumper boolean field map kar di
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -66,8 +67,9 @@ const AdminDashboard = ({ onLogout }) => {
         min_amount: formData.min_amount ? Number(formData.min_amount) : 1,
         max_amount: formData.max_amount ? Number(formData.max_amount) : 5,
         quantity: formData.quantity ? Number(formData.quantity) : 1,
-        start_date: String(formData.start_date || "2026-06-18"), // 👈 Added
-        expiry_date: String(formData.expiry_date || "2026-12-31")
+        start_date: String(formData.start_date || "2026-06-18"), 
+        expiry_date: String(formData.expiry_date || "2026-12-31"),
+        is_bumper: Boolean(formData.is_bumper) // 👈 Bound with backend schema expectation
       };
 
       const response = await fetch(`${API_BASE}/admin/campaigns/`, {
@@ -90,7 +92,7 @@ const AdminDashboard = ({ onLogout }) => {
       await fetchData(resData.id);
     } catch (error) { 
       console.error("Submission Failure:", error.message);
-      alert("Error generating batch."); 
+      alert("Error generating batch: " + error.message); 
     }
   };
 
@@ -246,12 +248,26 @@ const AdminDashboard = ({ onLogout }) => {
             <label style={fieldLabel}>Quantity</label>
             <input style={inputField} type="number" value={formData.quantity || ''} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
             
-            {/* 3. Render Form Input elements group block (Expiry ke exact upar Start Date add ki) */}
             <label style={fieldLabel}>Start Date (Active From)</label>
             <input style={inputField} type="date" value={formData.start_date || ''} onChange={e => setFormData({ ...formData, start_date: e.target.value })} required />
 
             <label style={fieldLabel}>Expiry Date</label>
             <input style={inputField} type="date" value={formData.expiry_date || ''} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} required />
+            
+            {/* 3. 🎯 FIX: Render Checkbox form element right above the submit layout button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px', marginBottom: '5px', padding: '10px 0' }}>
+              <input 
+                type="checkbox" 
+                id="is_bumper"
+                checked={formData.is_bumper || false} 
+                onChange={e => setFormData({ ...formData, is_bumper: e.target.checked })}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <label htmlFor="is_bumper" style={{ fontSize: '13px', fontWeight: '700', color: '#cbd5e1', cursor: 'pointer' }}>
+                🔥 Enable 64-Scan Bumper Cashback Loyalty Progress Tracker
+              </label>
+            </div>
+
             <button type="submit" style={primaryBtn}>GENERATE CRYPTO CODES</button>
           </form>
         </div>
@@ -262,7 +278,7 @@ const AdminDashboard = ({ onLogout }) => {
             {campaignList && campaignList.length > 0 ? (
               campaignList.map(c => (
                 <option key={c.id} value={c.id} style={{background:'#1e293b'}}>
-                  {c.series_name || `Batch #${c.id}`}
+                  {c.series_name || `Batch #${c.id}`} {c.is_bumper ? '🔥 [BUMPER]' : ''}
                 </option>
               ))
             ) : (
