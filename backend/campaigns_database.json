@@ -704,7 +704,27 @@
                     "redeemed_at": null
                 }
             ]
+        },
+        {
+            "id": 44,
+            "series_name": "testtttt",
+            "min_amount": 5.0,
+            "max_amount": 20.0,
+            "quantity": 1,
+            "start_date": "2026-06-25",
+            "expiry_date": "2026-06-30",
+            "is_bumper": false,
+            "qr_list": [
+                {
+                    "qr_code_id": "772c0435-8c69-45bc-b56d-d865de60048a",
+                    "assigned_amount": 5.54,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
         }
     ],
-    "total_payout": 0
+    "total_payout": 0,
+    "customers": {}
 }

@@ -7,7 +7,6 @@ const AdminDashboard = ({ onLogout }) => {
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [loading, setLoading] = useState(true);
   
-  // 1. 🎯 FIX: Form State me start_date ke sath is_bumper boolean property register ki
   const initialFormState = {
     series_name: '', 
     min_amount: '', 
@@ -15,12 +14,11 @@ const AdminDashboard = ({ onLogout }) => {
     quantity: '', 
     start_date: '',   
     expiry_date: '',
-    is_bumper: false  // 👈 Added
+    is_bumper: false  
   };
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // 🔥 LIVE PRODUCTION DRIVEN PATH ENGINE
   const API_BASE = window.location.origin.includes("localhost") 
     ? "http://localhost:8000" 
     : window.location.origin.replace(":3000", ":8000");
@@ -58,7 +56,6 @@ const AdminDashboard = ({ onLogout }) => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 2. 🎯 FIX: Submit payload data me is_bumper boolean field map kar di
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -69,7 +66,7 @@ const AdminDashboard = ({ onLogout }) => {
         quantity: formData.quantity ? Number(formData.quantity) : 1,
         start_date: String(formData.start_date || "2026-06-18"), 
         expiry_date: String(formData.expiry_date || "2026-12-31"),
-        is_bumper: Boolean(formData.is_bumper) // 👈 Bound with backend schema expectation
+        is_bumper: Boolean(formData.is_bumper) 
       };
 
       const response = await fetch(`${API_BASE}/admin/campaigns/`, {
@@ -96,21 +93,22 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
-  const loadImageAsBase64 = async (url) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Backend image sync failed");
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error("Base64 Conversion Error:", error);
-      throw error;
-    }
+  // 🎯 FIX: Google Open QR API ke cross-origin constraints ko fix karne ka foolproof browser tareeka
+  const loadImageAsBase64 = (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous'; 
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = (e) => reject(new Error("CORS image conversion pipeline crashed"));
+      img.src = url;
+    });
   };
 
   const downloadPDF = async () => {
@@ -133,12 +131,19 @@ const AdminDashboard = ({ onLogout }) => {
     const maxRows = 10; 
 
     try {
+      alert("Generating high-quality sticker sheet. Download will start automatically...");
+      
       for (let i = 0; i < campaign.qr_list.length; i++) {
         const qr = campaign.qr_list[i];
-        const fullUuidStr = String(qr.qr_code_id || qr.id || qr.voucher_id).toLowerCase().trim();
+        const fullUuidStr = String(qr.qr_code_id || qr.id).toLowerCase().trim();
         
-        const dynamicStickerUrl = `${API_BASE}/api/v1/generate-print-qr?qr_id=${fullUuidStr}&company_name=MARUTHI`;
-        const base64ImageString = await loadImageAsBase64(dynamicStickerUrl);
+        // Target path where scan routes client destination
+        const targetScanUrl = `https://qr-reward-system-gilt.vercel.app/claim/${fullUuidStr}`;
+        
+        // Cloud engine rendering architecture point bypass configuration
+        const fastQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(targetScanUrl)}`;
+        
+        const base64ImageString = await loadImageAsBase64(fastQrUrl);
 
         const itemsPerPage = maxColumns * maxRows; 
         if (i > 0 && i % itemsPerPage === 0) doc.addPage();
@@ -150,12 +155,31 @@ const AdminDashboard = ({ onLogout }) => {
         const x = startX + col * (cardWidth + gapX);
         const y = startY + row * (cardHeight + gapY);
 
-        doc.addImage(base64ImageString, 'PNG', x, y, cardWidth, cardHeight);
+        // Layout border logic
+        doc.setDrawColor(203, 213, 225);
+        doc.rect(x, y, cardWidth, cardHeight);
+        
+        doc.addImage(base64ImageString, 'PNG', x + 25, y + 1, 18, 18);
+        
+        doc.setFontSize(7);
+        doc.setFont("Helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text("MARUTHI", x + 2, y + 4);
+        
+        doc.setFontSize(5);
+        doc.setTextColor(29, 78, 216);
+        doc.text("Scratch & Scan to Win", x + 2, y + 8);
+        doc.text("Instant Payout", x + 2, y + 11);
+        
+        doc.setFontSize(4);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`S/N: ${fullUuidStr.substring(0, 14).toUpperCase()}...`, x + 2, y + 17);
       }
+      
       doc.save(`${campaign.series_name}_Official_Maruthi_Stickers.pdf`);
     } catch (err) { 
       console.error(err);
-      alert("Failed to sync structural dynamic labels. Check backend server configuration."); 
+      alert("Failed to render PDF engine labels locally: " + err.message); 
     }
   };
 
@@ -254,7 +278,6 @@ const AdminDashboard = ({ onLogout }) => {
             <label style={fieldLabel}>Expiry Date</label>
             <input style={inputField} type="date" value={formData.expiry_date || ''} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} required />
             
-            {/* 3. 🎯 FIX: Render Checkbox form element right above the submit layout button */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px', marginBottom: '5px', padding: '10px 0' }}>
               <input 
                 type="checkbox" 
@@ -292,7 +315,6 @@ const AdminDashboard = ({ onLogout }) => {
   );
 };
 
-// Styles object configurations
 const mainContainer = { padding: '40px', backgroundColor: '#020617', minHeight: '100vh', fontFamily: 'sans-serif', color: '#f8fafc' };
 const headerSection = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' };
 const premiumTitle = { margin: 0, fontSize: '28px', fontWeight: '900' };
