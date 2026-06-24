@@ -38,7 +38,7 @@ def save_db(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# 🎯 FIX: Batch Generation ke liye structural configuration models
+# 🎯 Structural Schema Validation Models
 class CampaignCreate(BaseModel):
     series_name: str
     min_amount: float
@@ -46,14 +46,14 @@ class CampaignCreate(BaseModel):
     quantity: int
     start_date: str   
     expiry_date: str
-    is_bumper: Optional[bool] = False  # Payload crash protection
+    is_bumper: Optional[bool] = False  
 
 class CustomerTrackRequest(BaseModel):
     mobile: str
     name: str
     qr_id: str
 
-# Helper to parse flexible date formats coming from react UI (like YYYY-MM-DD or DD-MM-YYYY)
+# Helper to parse flexible date formats coming from React UI
 def parse_flexible_date(date_str: str):
     clean_str = str(date_str).split("T")[0].strip()
     for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
@@ -63,12 +63,24 @@ def parse_flexible_date(date_str: str):
             continue
     raise ValueError(f"Date format mismatch for string: {date_str}")
 
+# 🎯 RESTORED: Admin Gateway Analytics Dashboard Node
+@app.get("/admin/analytics")
+def get_analytics():
+    db = load_db()
+    campaigns = db.get("campaigns", [])
+    total_qrs = sum(c.get("quantity", 0) for c in campaigns)
+    return {
+        "total_campaigns": len(campaigns),
+        "total_qrs_generated": total_qrs,
+        "total_payout_distributed": db.get("total_payout", 0)
+    }
+
 @app.get("/admin/campaigns/")
 def get_campaigns():
     db = load_db()
     return db.get("campaigns", [])
 
-# 🎯 BACK: Missing Batch Creation Endpoint Restored & Strengthened
+# 🎯 Batch Creation Logic Handler
 @app.post("/admin/campaigns/")
 def create_campaign(campaign: CampaignCreate):
     db = load_db()
@@ -153,6 +165,7 @@ def verify_customer_scan(qr_id: str):
         "is_bumper_campaign": target_campaign.get("is_bumper", False)
     }
 
+# 🎯 Customer Unique Identity Bumper Progress Tracker
 @app.post("/customer/check-progress")
 def check_customer_loyalty(req: CustomerTrackRequest):
     db = load_db()

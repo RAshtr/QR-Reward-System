@@ -723,6 +723,25 @@
                     "redeemed_at": null
                 }
             ]
+        },
+        {
+            "id": 45,
+            "series_name": "testing121",
+            "min_amount": 5.0,
+            "max_amount": 20.0,
+            "quantity": 1,
+            "start_date": "2026-06-26",
+            "expiry_date": "2026-06-29",
+            "is_bumper": false,
+            "qr_list": [
+                {
+                    "qr_code_id": "5de3c6e8-d494-4a95-a9d1-cf7456aea718",
+                    "assigned_amount": 13.51,
+                    "is_redeemed": false,
+                    "redeemed_mobile": "",
+                    "redeemed_at": null
+                }
+            ]
         }
     ],
     "total_payout": 0,
